@@ -1,7 +1,7 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![feature(portable_simd)]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
 
@@ -197,3 +197,54 @@ impl_repr_bytes_numeric!(i16);
 impl_repr_bytes_numeric!(i32);
 impl_repr_bytes_numeric!(i64);
 impl_repr_bytes_numeric!(i128);
+
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use proptest::{collection::vec, prelude::*};
+
+    use super::*;
+
+    macro_rules! test_repr_bytes_array {
+        ($size:expr) => {
+            paste::paste! {
+                #[test_strategy::proptest]
+                fn [<test_hex_encoding_ $size>](#[strategy(vec(any::<u8>(), $size))] input: Vec<u8>) {
+                    let mut arr = [0u8; $size];
+                    arr.copy_from_slice(&input);
+                    prop_assert_eq!(arr.to_hex(), hex::encode(arr));
+                }
+
+                #[test_strategy::proptest]
+                fn [<test_base64_encoding_ $size>](#[strategy(vec(any::<u8>(), $size))] input: Vec<u8>) {
+                    let mut arr = [0u8; $size];
+                    arr.copy_from_slice(&input);
+                    prop_assert_eq!(arr.to_base64(), base64::engine::general_purpose::STANDARD.encode(arr));
+                }
+
+                #[test_strategy::proptest]
+                fn [<test_equals_ $size>](
+                    #[strategy(vec(any::<u8>(), $size))] input1: Vec<u8>,
+                    #[strategy(vec(any::<u8>(), $size))] input2: Vec<u8>
+                ) {
+                    let mut arr1 = [0u8; $size];
+                    let mut arr2 = [0u8; $size];
+                    arr1.copy_from_slice(&input1);
+                    arr2.copy_from_slice(&input2);
+
+                    prop_assert_eq!(arr1.equals(&arr2), arr1 == arr2);
+                }
+            }
+        };
+    }
+
+    test_repr_bytes_array!(16);
+    test_repr_bytes_array!(32);
+    test_repr_bytes_array!(64);
+    test_repr_bytes_array!(128);
+    test_repr_bytes_array!(256);
+    test_repr_bytes_array!(512);
+    test_repr_bytes_array!(1024);
+    test_repr_bytes_array!(2048);
+}
