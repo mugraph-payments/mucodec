@@ -1,4 +1,3 @@
-#![cfg_attr(feature = "simd", feature(portable_simd))]
 use std::time::Duration;
 
 use base64::Engine;
@@ -29,58 +28,39 @@ fn bench_repr(c: &mut Criterion<WallTime>) {
             let mut input = [0u8; $size];
             input.copy_from_slice(&seed[..$size]);
 
-            #[cfg(not(feature = "simd"))]
             group.bench_function(BenchmarkId::new("to_hex", "native"), |b| {
+                b.iter(|| hex::encode(black_box(input.as_bytes())));
+            });
+
+            group.bench_function(BenchmarkId::new("to_hex", "simd"), |b| {
                 b.iter(|| input.to_hex());
             });
 
-            #[cfg(feature = "simd")]
-            {
-                group.bench_function(BenchmarkId::new("to_hex", "native"), |b| {
-                    b.iter(|| hex::encode(black_box(input.as_bytes())));
-                });
+            let mut input1 = [0u8; $size];
+            let mut input2 = [0u8; $size];
+            input1.copy_from_slice(&seed[..$size]);
+            input2.copy_from_slice(&seed[$size..($size * 2)]);
 
-                group.bench_function(BenchmarkId::new("to_hex", "simd"), |b| {
-                    b.iter(|| input.to_hex());
-                });
-            };
+            group.bench_function(BenchmarkId::new("equals", "native"), |b| {
+                b.iter(|| black_box(&input1) == black_box(&input2));
+            });
 
-            #[cfg(feature = "simd")]
-            {
-                let mut input1 = [0u8; $size];
-                let mut input2 = [0u8; $size];
-                input1.copy_from_slice(&seed[..$size]);
-                input2.copy_from_slice(&seed[$size..($size * 2)]);
-
-                group.bench_function(BenchmarkId::new("equals", "native"), |b| {
-                    b.iter(|| black_box(&input1) == black_box(&input2));
-                });
-
-                group.bench_function(BenchmarkId::new("equals", "simd"), |b| {
-                    b.iter(|| black_box(&input1).equals(black_box(&input2)));
-                });
-            }
+            group.bench_function(BenchmarkId::new("equals", "simd"), |b| {
+                b.iter(|| black_box(&input1).equals(black_box(&input2)));
+            });
 
             let mut input = [0u8; $size];
             input.copy_from_slice(&seed[..$size]);
 
-            #[cfg(not(feature = "simd"))]
             group.bench_function(BenchmarkId::new("to_base64", "native"), |b| {
-                b.iter(|| input.to_base64());
+                b.iter(|| {
+                    base64::engine::general_purpose::STANDARD.encode(black_box(input.as_bytes()))
+                });
             });
 
-            #[cfg(feature = "simd")]
-            {
-                group.bench_function(BenchmarkId::new("to_base64", "native"), |b| {
-                    b.iter(|| {
-                        base64::engine::general_purpose::STANDARD.encode(black_box(input.as_bytes()))
-                    });
-                });
-
-                group.bench_function(BenchmarkId::new("to_base64", "simd"), |b| {
-                    b.iter(|| input.to_base64());
-                });
-            };
+            group.bench_function(BenchmarkId::new("to_base64", "simd"), |b| {
+                b.iter(|| input.to_base64());
+            });
 
             group.finish();
         }};

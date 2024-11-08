@@ -1,12 +1,11 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
-#![cfg_attr(feature = "simd", feature(portable_simd))]
+#![feature(portable_simd)]
 #![no_std]
 
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-#[cfg(feature = "simd")]
 use core::simd::{cmp::*, num::*, *};
 
 use base64::Engine;
@@ -74,44 +73,6 @@ macro_rules! impl_repr_bytes_array {
             }
 
             #[inline]
-            fn equals(&self, other: &Self) -> bool {
-                self.as_bytes() == other.as_bytes()
-            }
-        }
-
-        impl ReprHex for [u8; $size] {
-            #[inline(always)]
-            fn to_hex(&self) -> String {
-                hex::encode(self.as_bytes())
-            }
-        }
-
-        impl ReprBase64 for [u8; $size] {
-            #[inline(always)]
-            fn to_base64(&self) -> String {
-                base64::engine::general_purpose::STANDARD.encode(self.as_bytes())
-            }
-        }
-    };
-}
-
-macro_rules! impl_repr_bytes_array_simd {
-    ($size:expr) => {
-        impl ReprBytes for [u8; $size] {
-            const N: usize = $size;
-
-            #[inline(always)]
-            fn from_bytes(input: [u8; Self::N]) -> Self {
-                input
-            }
-
-            #[inline(always)]
-            fn as_bytes(&self) -> [u8; Self::N] {
-                *self
-            }
-
-            #[cfg(feature = "simd")]
-            #[inline]
             fn equals(&self, other: &Self) -> bool
             where
                 [(); Self::N]:,
@@ -129,16 +90,6 @@ macro_rules! impl_repr_bytes_array_simd {
         }
 
         impl ReprHex for [u8; $size] {
-            #[cfg(not(feature = "simd"))]
-            #[inline(always)]
-            fn to_hex(&self) -> String
-            where
-                [(); Self::N]:,
-            {
-                hex::encode(self.as_bytes())
-            }
-
-            #[cfg(feature = "simd")]
             #[inline]
             fn to_hex(&self) -> String
             where
@@ -178,15 +129,6 @@ macro_rules! impl_repr_bytes_array_simd {
         }
 
         impl ReprBase64 for [u8; $size] {
-            #[cfg(not(feature = "simd"))]
-            #[inline(always)]
-            fn to_base64(&self) -> String
-            where
-                [(); Self::N]:,
-            {
-                base64::engine::general_purpose::STANDARD.encode(self.as_bytes())
-            }
-
             #[inline]
             fn to_base64(&self) -> String {
                 base64::engine::general_purpose::STANDARD.encode(self.as_bytes())
@@ -235,15 +177,15 @@ impl_repr_bytes_array!(1);
 impl_repr_bytes_array!(2);
 impl_repr_bytes_array!(4);
 impl_repr_bytes_array!(8);
-impl_repr_bytes_array_simd!(16);
-impl_repr_bytes_array_simd!(32);
-impl_repr_bytes_array_simd!(64);
-impl_repr_bytes_array_simd!(128);
-impl_repr_bytes_array_simd!(256);
-impl_repr_bytes_array_simd!(512);
-impl_repr_bytes_array_simd!(1024);
-impl_repr_bytes_array_simd!(2048);
-impl_repr_bytes_array_simd!(5192);
+impl_repr_bytes_array!(16);
+impl_repr_bytes_array!(32);
+impl_repr_bytes_array!(64);
+impl_repr_bytes_array!(128);
+impl_repr_bytes_array!(256);
+impl_repr_bytes_array!(512);
+impl_repr_bytes_array!(1024);
+impl_repr_bytes_array!(2048);
+impl_repr_bytes_array!(5192);
 
 impl_repr_bytes_numeric!(u8);
 impl_repr_bytes_numeric!(u16);

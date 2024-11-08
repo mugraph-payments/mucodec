@@ -8,10 +8,6 @@ hex = { version = "0.4.3", default-features = false }
 onlyerror = { version = "0.1.4", default-features = false }
 base64 = { version = "0.22.1", features = ["alloc"] }
 
-[features]
-default = ["simd"]
-simd = []
-
 [dev-dependencies]
 criterion = { version = "0.5.1" }
 hex = { version = "0.4.3" }
