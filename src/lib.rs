@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
-use core::simd::{cmp::*, num::*, *};
+use core::simd::{cmp::*, num::*, LaneCount, SupportedLaneCount, *};
 
 use base64::Engine;
 
@@ -78,6 +78,7 @@ macro_rules! impl_repr_bytes_array {
                 [(); Self::N]:,
             {
                 const LANES: usize = 16;
+
                 for (a, b) in self.chunks_exact(LANES).zip(other.chunks_exact(LANES)) {
                     let a: Simd<u8, LANES> = Simd::from_slice(a);
                     let b: Simd<u8, LANES> = Simd::from_slice(b);
@@ -85,6 +86,7 @@ macro_rules! impl_repr_bytes_array {
                         return false;
                     }
                 }
+
                 true
             }
         }
@@ -96,42 +98,76 @@ macro_rules! impl_repr_bytes_array {
                 [(); Self::N]:,
             {
                 const LOOKUP: [u8; 16] = *b"0123456789abcdef";
-                let mut result = String::with_capacity(Self::N * 2);
-                let result_ptr = result.as_mut_ptr();
+                let mut result = Vec::with_capacity($size * 2);
 
-                for (i, chunk) in self.chunks_exact(16).enumerate() {
+                // Process full chunks of 16 bytes
+                for chunk in self.chunks_exact(16) {
                     let v: Simd<u8, 16> = Simd::from_slice(chunk);
-                    let hi = (v >> 4) & Simd::splat(0x0f);
+
+                    // Extract high and low nibbles
+                    let hi = v >> 4;
                     let lo = v & Simd::splat(0x0f);
 
-                    // Convert u8 indices to usize for gather_or_default
+                    // Convert to usize for indexing
                     let hi_indices = hi.cast::<usize>();
                     let lo_indices = lo.cast::<usize>();
 
-                    let hi_lookup = Simd::gather_or_default(&LOOKUP, hi_indices);
-                    let lo_lookup = Simd::gather_or_default(&LOOKUP, lo_indices);
+                    // Lookup hex digits
+                    let hi_chars = Simd::gather_or_default(&LOOKUP, hi_indices);
+                    let lo_chars = Simd::gather_or_default(&LOOKUP, lo_indices);
 
-                    // Copy values directly to the String's buffer
-                    unsafe {
-                        hi_lookup.copy_to_slice(core::slice::from_raw_parts_mut(
-                            result_ptr.add(i * 32),
-                            16,
-                        ));
-                        lo_lookup.copy_to_slice(core::slice::from_raw_parts_mut(
-                            result_ptr.add(i * 32 + 16),
-                            16,
-                        ));
+                    // Interleave high and low digits
+                    for i in 0..16 {
+                        result.push(hi_chars.as_array()[i]);
+                        result.push(lo_chars.as_array()[i]);
                     }
                 }
 
-                result
+                // Handle remaining bytes
+                let remainder = self.chunks_exact(16).remainder();
+                for &byte in remainder {
+                    result.push(LOOKUP[(byte >> 4) as usize]);
+                    result.push(LOOKUP[(byte & 0xf) as usize]);
+                }
+
+                // Safe because we only used valid ASCII hex digits
+                unsafe { String::from_utf8_unchecked(result) }
             }
         }
 
         impl ReprBase64 for [u8; $size] {
             #[inline]
             fn to_base64(&self) -> String {
-                base64::engine::general_purpose::STANDARD.encode(self.as_bytes())
+                // For small arrays, use the standard implementation
+                if Self::N < 32 {
+                    return base64::engine::general_purpose::STANDARD.encode(self);
+                }
+
+                let mut result = Vec::with_capacity((Self::N + 2) / 3 * 4);
+
+                // Process 24-byte chunks (produces 32 bytes of base64)
+                for chunk in self.chunks_exact(24) {
+                    let mut input = [0u8; 32];
+                    input[..24].copy_from_slice(chunk);
+
+                    let input_simd = Simd::<u8, 32>::from_array(input);
+                    let reshuffled = enc_reshuffle(input_simd);
+                    let encoded = enc_translate(reshuffled);
+                    let encoded_arr = encoded.to_array();
+
+                    // Only take the first 32 bytes that correspond to our 24 input bytes
+                    result.extend_from_slice(&encoded_arr[..32]);
+                }
+
+                // Handle remaining bytes with standard encoding
+                let remainder = self.chunks_exact(24).remainder();
+                if !remainder.is_empty() {
+                    let encoded = base64::engine::general_purpose::STANDARD.encode(remainder);
+                    result.extend_from_slice(encoded.as_bytes());
+                }
+
+                // Safe because base64 only produces valid UTF-8
+                unsafe { String::from_utf8_unchecked(result) }
             }
         }
     };
@@ -197,6 +233,58 @@ impl_repr_bytes_numeric!(i16);
 impl_repr_bytes_numeric!(i32);
 impl_repr_bytes_numeric!(i64);
 impl_repr_bytes_numeric!(i128);
+
+#[inline(always)]
+fn enc_reshuffle<const N: usize>(input: Simd<u8, N>) -> Simd<u8, N>
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    let mut result = Simd::splat(0u8);
+    let input_arr = input.to_array();
+
+    // Process 3 input bytes into 4 output bytes
+    for i in (0..N / 4 * 3).step_by(3) {
+        let out_idx = i / 3 * 4;
+
+        let b0 = input_arr[i];
+        let b1 = input_arr[i + 1];
+        let b2 = input_arr[i + 2];
+
+        result.as_mut_array()[out_idx] = b0 >> 2;
+        result.as_mut_array()[out_idx + 1] = ((b0 & 0x03) << 4) | (b1 >> 4);
+        result.as_mut_array()[out_idx + 2] = ((b1 & 0x0f) << 2) | (b2 >> 6);
+        result.as_mut_array()[out_idx + 3] = b2 & 0x3f;
+    }
+
+    result
+}
+
+#[inline(always)]
+fn enc_translate<const N: usize>(input: Simd<u8, N>) -> Simd<u8, N>
+where
+    LaneCount<N>: SupportedLaneCount,
+{
+    // Base64 translation table
+    let lut = Simd::<u8, 32>::from_array([
+        b'A', b'B', b'C', b'D', b'E', b'F', b'G', b'H', b'I', b'J', b'K', b'L', b'M', b'N', b'O',
+        b'P', b'Q', b'R', b'S', b'T', b'U', b'V', b'W', b'X', b'Y', b'Z', b'a', b'b', b'c', b'd',
+        b'e', b'f',
+    ]);
+
+    let lut2 = Simd::<u8, 32>::from_array([
+        b'g', b'h', b'i', b'j', b'k', b'l', b'm', b'n', b'o', b'p', b'q', b'r', b's', b't', b'u',
+        b'v', b'w', b'x', b'y', b'z', b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9',
+        b'+', b'/',
+    ]);
+
+    let mask = input.simd_ge(Simd::splat(32));
+    let indices = input & Simd::splat(0x1f);
+
+    mask.select(
+        Simd::gather_or_default(&lut2.to_array(), indices.cast()),
+        Simd::gather_or_default(&lut.to_array(), indices.cast()),
+    )
+}
 
 #[cfg(test)]
 mod tests {
