@@ -1,6 +1,8 @@
 # Mucodec
 
-A `no_std`, no dependencies, fully deterministic, `nightly` only serialization and deserialization library, optimized for speed and reliability.
+A `no_std`, no dependencies*, fully deterministic, `nightly` only serialization and deserialization library, optimized for speed and reliability.
+
+*\*: Only the base crate, if you enable the `derive` feature then we depend on [`myn`](https://github.com/parasyte/myn).*
 
 ## Non-Goals
 
@@ -13,9 +15,9 @@ A `no_std`, no dependencies, fully deterministic, `nightly` only serialization a
 
 * [x] Hexadecimal Encoding/Decoding
 * [x] Base64 Encoding/Decoding
+* [x] `Encode` derive macro
+* [x] `Decode` derive macro
 * [ ] Integer Binary Encoding
-* [ ] `Encode` derive macro
-* [ ] `Decode` derive macro
 
 ## Licensing
 
