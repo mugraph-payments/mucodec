@@ -19,3 +19,8 @@ test-strategy = "0.4.0"
 name = "all"
 path = "benches/bench_all.rs"
 harness = false
+
+[[bench]]
+name = "hex"
+path = "benches/bench_hex.rs"
+harness = false

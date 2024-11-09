@@ -25,26 +25,6 @@ fn bench_repr(c: &mut Criterion<WallTime>) {
             let mut group = c.benchmark_group(format!("ReprBytes<[u8; {}]>", $size));
             group.throughput(Throughput::Bytes($size));
 
-            let mut input = [0u8; $size];
-            input.copy_from_slice(&seed[..$size]);
-
-            group.bench_function(BenchmarkId::new("to_hex", "native"), |b| {
-                b.iter(|| hex::encode(black_box(input.as_bytes())));
-            });
-
-            group.bench_function(BenchmarkId::new("to_hex", "simd"), |b| {
-                b.iter(|| input.to_hex());
-            });
-
-            let hex_input = hex::encode(input);
-            group.bench_function(BenchmarkId::new("from_hex", "native"), |b| {
-                b.iter(|| hex::decode(black_box(&hex_input)).unwrap());
-            });
-
-            group.bench_function(BenchmarkId::new("from_hex", "simd"), |b| {
-                b.iter(|| <[u8; $size]>::from_hex(black_box(&hex_input)).unwrap());
-            });
-
             let mut input1 = [0u8; $size];
             let mut input2 = [0u8; $size];
             input1.copy_from_slice(&seed[..$size]);
