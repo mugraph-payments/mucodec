@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use criterion::{
-    black_box,
     criterion_group,
     criterion_main,
     measurement::WallTime,
@@ -24,15 +23,15 @@ fn bench_to_hex(c: &mut Criterion<WallTime>) {
             let mut input = [0u8; $size];
             input.copy_from_slice(&seed[..$size]);
 
-            let mut group = c.benchmark_group(format!("ReprBytes<[u8; {}]>", $size));
+            let mut group = c.benchmark_group("ReprHex::to_hex");
             group.throughput(Throughput::Bytes($size));
 
-            group.bench_function(BenchmarkId::new("to_hex", "native"), |b| {
-                b.iter(|| hex::encode(black_box(input.as_bytes())));
+            group.bench_with_input(BenchmarkId::new("native", $size), &input, |b, i| {
+                b.iter(|| hex::encode(i));
             });
 
-            group.bench_function(BenchmarkId::new("to_hex", "simd"), |b| {
-                b.iter(|| input.to_hex());
+            group.bench_with_input(BenchmarkId::new("simd", $size), &input, |b, i| {
+                b.iter(|| i.to_hex());
             });
 
             group.finish();
@@ -61,15 +60,15 @@ fn bench_from_hex(c: &mut Criterion<WallTime>) {
             input.copy_from_slice(&seed[..$size]);
             let hex_input = hex::encode(input);
 
-            let mut group = c.benchmark_group(format!("ReprBytes<[u8; {}]>", $size));
+            let mut group = c.benchmark_group("ReprHex::from_hex");
             group.throughput(Throughput::Bytes($size));
 
-            group.bench_function(BenchmarkId::new("from_hex", "native"), |b| {
-                b.iter(|| hex::decode(black_box(&hex_input)).unwrap());
+            group.bench_with_input(BenchmarkId::new("native", $size), &hex_input, |b, i| {
+                b.iter(|| hex::decode(&i).unwrap());
             });
 
-            group.bench_function(BenchmarkId::new("from_hex", "simd"), |b| {
-                b.iter(|| <[u8; $size]>::from_hex(black_box(&hex_input)).unwrap());
+            group.bench_with_input(BenchmarkId::new("simd", $size), &hex_input, |b, i| {
+                b.iter(|| <[u8; $size]>::from_hex(&i).unwrap());
             });
 
             group.finish();

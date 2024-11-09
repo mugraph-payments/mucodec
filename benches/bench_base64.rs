@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use criterion::{
-    black_box,
     criterion_group,
     criterion_main,
     measurement::WallTime,
@@ -25,15 +24,15 @@ fn bench_to_base64(c: &mut Criterion<WallTime>) {
             let mut input = [0u8; $size];
             input.copy_from_slice(&seed[..$size]);
 
-            let mut group = c.benchmark_group(format!("ReprBytes<[u8; {}]>", $size));
+            let mut group = c.benchmark_group("ReprBase64::to_base64");
             group.throughput(Throughput::Bytes($size));
 
-            group.bench_function(BenchmarkId::new("to_base64", "native"), |b| {
-                b.iter(|| STANDARD.encode(black_box(input.as_bytes())));
+            group.bench_with_input(BenchmarkId::new("native", $size), &input, |b, i| {
+                b.iter(|| STANDARD.encode(i));
             });
 
-            group.bench_function(BenchmarkId::new("to_base64", "simd"), |b| {
-                b.iter(|| input.to_base64());
+            group.bench_with_input(BenchmarkId::new("simd", $size), &input, |b, i| {
+                b.iter(|| i.to_base64());
             });
 
             group.finish();
@@ -62,15 +61,15 @@ fn bench_from_base64(c: &mut Criterion<WallTime>) {
             input.copy_from_slice(&seed[..$size]);
             let base64_input = STANDARD.encode(input);
 
-            let mut group = c.benchmark_group(format!("ReprBytes<[u8; {}]>", $size));
+            let mut group = c.benchmark_group("ReprBase64::from_base64");
             group.throughput(Throughput::Bytes($size));
 
-            group.bench_function(BenchmarkId::new("from_base64", "native"), |b| {
-                b.iter(|| STANDARD.decode(black_box(&base64_input)).unwrap());
+            group.bench_with_input(BenchmarkId::new("native", $size), &base64_input, |b, i| {
+                b.iter(|| STANDARD.decode(&i).unwrap());
             });
 
-            group.bench_function(BenchmarkId::new("from_base64", "simd"), |b| {
-                b.iter(|| <[u8; $size]>::from_base64(black_box(&base64_input)).unwrap());
+            group.bench_with_input(BenchmarkId::new("simd", $size), &base64_input, |b, i| {
+                b.iter(|| <[u8; $size]>::from_base64(&i).unwrap());
             });
 
             group.finish();
