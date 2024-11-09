@@ -1,4 +1,4 @@
-# mucodec
+# Mucodec
 
 A `no_std`, no dependencies, fully deterministic, `nightly` only serialization and deserialization library, optimized for speed and reliability.
 
@@ -16,3 +16,9 @@ A `no_std`, no dependencies, fully deterministic, `nightly` only serialization a
 * [ ] Integer Binary Encoding
 * [ ] `Encode` derive macro
 * [ ] `Decode` derive macro
+
+## Licensing
+
+Mucodec, as well as all projects under the `mugraph-payments` is dual-licensed under the [MIT](./LICENSE) and [Apache 2.0](./LICENSE-APACHE) licenses. Feel free to choose either of them, depending on your use-case.
+
+This should cover most possible uses for this software, but if you need an exception for any reason, please do get in touch.
