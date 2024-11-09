@@ -24,3 +24,8 @@ harness = false
 name = "hex"
 path = "benches/bench_hex.rs"
 harness = false
+
+[[bench]]
+name = "base64"
+path = "benches/bench_base64.rs"
+harness = false

@@ -38,19 +38,6 @@ fn bench_repr(c: &mut Criterion<WallTime>) {
                 b.iter(|| black_box(&input1).equals(black_box(&input2)));
             });
 
-            let mut input = [0u8; $size];
-            input.copy_from_slice(&seed[..$size]);
-
-            group.bench_function(BenchmarkId::new("to_base64", "native"), |b| {
-                b.iter(|| {
-                    base64::engine::general_purpose::STANDARD.encode(black_box(input.as_bytes()))
-                });
-            });
-
-            group.bench_function(BenchmarkId::new("to_base64", "simd"), |b| {
-                b.iter(|| input.to_base64());
-            });
-
             group.finish();
         }};
     }
