@@ -11,7 +11,7 @@ use core::{
 
 use crate::{from_hex_digit, Error, ReprBase64, ReprBytes, ReprHex};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Bytes<const N: usize>([u8; N]);
 
@@ -49,24 +49,6 @@ impl<const N: usize> fmt::Display for Bytes<N> {
         f.write_str(&self.to_hex())
     }
 }
-
-impl<const N: usize> PartialEq for Bytes<N> {
-    fn eq(&self, other: &Self) -> bool {
-        const LANES: usize = 16;
-
-        for (a, b) in self.0.chunks_exact(LANES).zip(other.0.chunks_exact(LANES)) {
-            let a: Simd<u8, LANES> = Simd::from_slice(a);
-            let b: Simd<u8, LANES> = Simd::from_slice(b);
-            if a.simd_ne(b).any() {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
-impl<const N: usize> Eq for Bytes<N> {}
 
 impl<const N: usize> Deref for Bytes<N> {
     type Target = [u8; N];
@@ -469,16 +451,6 @@ fn dec_byte(input: u8) -> Result<u8, Error> {
 #[cfg(test)]
 mod tests {
     extern crate alloc;
-
-    use proptest::prelude::*;
-    use test_strategy::proptest;
-
-    use super::Bytes;
-
-    #[proptest]
-    fn test_equality(a: Bytes<64>, b: Bytes<64>) {
-        prop_assert_eq!(a == b, *a == *b);
-    }
 
     macro_rules! test_size {
         ($size:expr) => {

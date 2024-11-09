@@ -23,12 +23,6 @@ proptest = ["dep:proptest"]
 rand = ["dep:rand"]
 
 [[bench]]
-name = "bytes"
-path = "benches/bytes.rs"
-harness = false
-required-features = ["rand"]
-
-[[bench]]
 name = "from_hex"
 path = "benches/from_hex.rs"
 harness = false
