@@ -224,11 +224,14 @@ macro_rules! impl_repr_bytes_array {
             fn to_base64(&self) -> String {
                 const BASE64_CHARS: &[u8] =
                     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-                let mut result = Vec::with_capacity((Self::N + 2) / 3 * 4);
-                let mut chunks = self.chunks_exact(24);
+                let mut result = String::with_capacity((Self::N + 2) / 3 * 4);
+                let mut output = [0u8; 32]; // Fixed buffer for SIMD output
+                let chunks = self.chunks_exact(24);
+                let remainder = chunks.remainder();
+                let remainder_len = remainder.len();
 
                 // Process full chunks with SIMD
-                while let Some(chunk) = chunks.next() {
+                for chunk in chunks {
                     // Create a padded 32-byte buffer
                     let mut padded = [0u8; 32];
                     padded[..24].copy_from_slice(chunk);
@@ -237,48 +240,48 @@ macro_rules! impl_repr_bytes_array {
                     let reshuffled = enc_reshuffle(input_simd);
                     let encoded = enc_translate(reshuffled);
 
-                    // Only take the valid base64 output (32 bytes for 24 input bytes)
-                    result.extend_from_slice(&encoded.to_array()[..32]);
+                    // Copy to our fixed output buffer
+                    output.copy_from_slice(&encoded.to_array());
+
+                    // Safe because we know the output only contains valid base64 characters
+                    unsafe {
+                        result.push_str(core::str::from_utf8_unchecked(&output[..32]));
+                    }
                 }
 
-                // Handle remaining bytes manually
-                let remainder = chunks.remainder();
-                if !remainder.is_empty() {
+                // Handle remaining bytes without branching on the outer loop
+                if remainder_len > 0 {
                     let mut i = 0;
-                    while i < remainder.len() {
+                    let mut temp = [0u8; 4];
+
+                    while i < remainder_len {
                         let b0 = remainder[i];
-                        let b1 = if i + 1 < remainder.len() {
-                            remainder[i + 1]
+                        let b1 = *remainder.get(i + 1).unwrap_or(&0);
+                        let b2 = *remainder.get(i + 2).unwrap_or(&0);
+
+                        temp[0] = BASE64_CHARS[(b0 >> 2) as usize];
+                        temp[1] = BASE64_CHARS[((b0 & 0x03) << 4 | b1 >> 4) as usize];
+                        temp[2] = if i + 1 < remainder_len {
+                            BASE64_CHARS[((b1 & 0x0f) << 2 | b2 >> 6) as usize]
                         } else {
-                            0
+                            b'='
                         };
-                        let b2 = if i + 2 < remainder.len() {
-                            remainder[i + 2]
+                        temp[3] = if i + 2 < remainder_len {
+                            BASE64_CHARS[(b2 & 0x3f) as usize]
                         } else {
-                            0
+                            b'='
                         };
 
-                        result.push(BASE64_CHARS[(b0 >> 2) as usize]);
-                        result.push(BASE64_CHARS[((b0 & 0x03) << 4 | b1 >> 4) as usize]);
-
-                        if i + 1 < remainder.len() {
-                            result.push(BASE64_CHARS[((b1 & 0x0f) << 2 | b2 >> 6) as usize]);
-                        } else {
-                            result.push(b'=');
-                        }
-
-                        if i + 2 < remainder.len() {
-                            result.push(BASE64_CHARS[(b2 & 0x3f) as usize]);
-                        } else {
-                            result.push(b'=');
+                        // Safe because we know temp only contains valid base64 characters
+                        unsafe {
+                            result.push_str(core::str::from_utf8_unchecked(&temp));
                         }
 
                         i += 3;
                     }
                 }
 
-                // Safe because base64 only produces valid UTF-8
-                unsafe { String::from_utf8_unchecked(result) }
+                result
             }
 
             #[inline]
