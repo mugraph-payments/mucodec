@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+mod bytes;
 mod error;
 mod repr;
 pub use self::{bytes::Bytes, error::Error, repr::*};
