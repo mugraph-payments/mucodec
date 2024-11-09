@@ -39,9 +39,6 @@ fn bench_to_base64(c: &mut Criterion<WallTime>) {
         }};
     }
 
-    bench_arr!(16);
-    bench_arr!(32);
-    bench_arr!(64);
     bench_arr!(128);
     bench_arr!(256);
     bench_arr!(512);
@@ -76,9 +73,6 @@ fn bench_from_base64(c: &mut Criterion<WallTime>) {
         }};
     }
 
-    bench_arr!(16);
-    bench_arr!(32);
-    bench_arr!(64);
     bench_arr!(128);
     bench_arr!(256);
     bench_arr!(512);
