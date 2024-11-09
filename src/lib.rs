@@ -434,6 +434,12 @@ mod tests {
                 }
 
                 #[test_strategy::proptest]
+                fn [<test_hex_roundtrip_ $size>](#[strategy(vec(any::<u8>(), $size))] input: Vec<u8>) {
+                    let input: [u8; $size] = input.try_into().unwrap();
+                    prop_assert_eq!(<[u8; $size]>::from_hex(&input.to_hex())?, input);
+                }
+
+                #[test_strategy::proptest]
                 fn [<test_base64_encoding_ $size>](#[strategy(vec(any::<u8>(), $size))] input: Vec<u8>) {
                     let mut arr = [0u8; $size];
                     arr.copy_from_slice(&input);
@@ -464,9 +470,4 @@ mod tests {
     test_repr_bytes_array!(512);
     test_repr_bytes_array!(1024);
     test_repr_bytes_array!(2048);
-
-    #[test_strategy::proptest]
-    fn test_hex_roundtrip_32(input: [u8; 32]) {
-        prop_assert_eq!(<[u8; 32]>::from_hex(&input.to_hex())?, input);
-    }
 }
