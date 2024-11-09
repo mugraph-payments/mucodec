@@ -73,6 +73,10 @@ fn from_hex_digit(digit: u8) -> Result<u8, Error> {
 
 pub trait ReprBase64: ReprBytes {
     fn to_base64(&self) -> String;
+
+    fn from_base64(input: &str) -> Result<Self, Error>
+    where
+        [(); Self::N]:;
 }
 
 macro_rules! impl_repr_bytes_array {
@@ -276,6 +280,79 @@ macro_rules! impl_repr_bytes_array {
                 // Safe because base64 only produces valid UTF-8
                 unsafe { String::from_utf8_unchecked(result) }
             }
+
+            #[inline]
+            fn from_base64(input: &str) -> Result<Self, Error>
+            where
+                [(); Self::N]:,
+            {
+                // Calculate expected base64 length (including padding)
+                let expected_len = (Self::N + 2) / 3 * 4;
+                if input.len() != expected_len {
+                    return Err(Error::InvalidData(format!(
+                        "Invalid base64 string length: expected {}, got {}",
+                        expected_len,
+                        input.len()
+                    )));
+                }
+
+                let input = input.as_bytes();
+                let mut result = [0u8; $size];
+                let mut chunks = input.chunks_exact(32);
+                let mut out_idx = 0;
+
+                // Process full chunks with SIMD
+                while let Some(chunk) = chunks.next() {
+                    if out_idx + 24 > $size {
+                        break;
+                    }
+
+                    let input_simd = Simd::<u8, 32>::from_slice(chunk);
+                    let decoded = dec_translate(input_simd)?;
+                    let reshuffled = dec_reshuffle(decoded);
+
+                    // Copy valid bytes to result
+                    result[out_idx..out_idx + 24].copy_from_slice(&reshuffled.to_array()[..24]);
+                    out_idx += 24;
+                }
+
+                // Handle remaining bytes manually
+                let remainder = chunks.remainder();
+                if !remainder.is_empty() {
+                    let mut i = 0;
+                    while i < remainder.len() {
+                        if out_idx >= $size {
+                            break;
+                        }
+
+                        let b0 = dec_byte(remainder[i])?;
+                        let b1 = dec_byte(remainder[i + 1])?;
+                        let b2 = if remainder[i + 2] == b'=' {
+                            0
+                        } else {
+                            dec_byte(remainder[i + 2])?
+                        };
+                        let b3 = if remainder[i + 3] == b'=' {
+                            0
+                        } else {
+                            dec_byte(remainder[i + 3])?
+                        };
+
+                        result[out_idx] = (b0 << 2) | (b1 >> 4);
+                        if remainder[i + 2] != b'=' {
+                            result[out_idx + 1] = (b1 << 4) | (b2 >> 2);
+                        }
+                        if remainder[i + 3] != b'=' {
+                            result[out_idx + 2] = (b2 << 6) | b3;
+                        }
+
+                        i += 4;
+                        out_idx += 3;
+                    }
+                }
+
+                Ok(result)
+            }
         }
     };
 }
@@ -414,6 +491,68 @@ fn enc_translate(input: Simd<u8, 32>) -> Simd<u8, 32> {
     result
 }
 
+#[inline(always)]
+fn dec_translate(input: Simd<u8, 32>) -> Result<Simd<u8, 32>, Error> {
+    let mut result = Simd::splat(0u8);
+
+    for i in 0..32 {
+        result[i] = match input[i] {
+            b'A'..=b'Z' => input[i] - b'A',
+            b'a'..=b'z' => input[i] - b'a' + 26,
+            b'0'..=b'9' => input[i] - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' => 0,
+            _ => {
+                return Err(Error::InvalidData(format!(
+                    "Invalid base64 character: {}",
+                    input[i] as char
+                )))
+            }
+        };
+    }
+
+    Ok(result)
+}
+
+#[inline(always)]
+fn dec_reshuffle(input: Simd<u8, 32>) -> Simd<u8, 32> {
+    let mut result = Simd::splat(0u8);
+
+    for i in 0..8 {
+        let base = i * 4;
+        let out_base = i * 3;
+
+        if out_base + 2 < 32 {
+            let b0 = input[base];
+            let b1 = input[base + 1];
+            let b2 = input[base + 2];
+            let b3 = input[base + 3];
+
+            result[out_base] = (b0 << 2) | (b1 >> 4);
+            result[out_base + 1] = (b1 << 4) | (b2 >> 2);
+            result[out_base + 2] = (b2 << 6) | b3;
+        }
+    }
+
+    result
+}
+
+#[inline]
+fn dec_byte(input: u8) -> Result<u8, Error> {
+    match input {
+        b'A'..=b'Z' => Ok(input - b'A'),
+        b'a'..=b'z' => Ok(input - b'a' + 26),
+        b'0'..=b'9' => Ok(input - b'0' + 52),
+        b'+' => Ok(62),
+        b'/' => Ok(63),
+        _ => Err(Error::InvalidData(format!(
+            "Invalid base64 character: {}",
+            input as char
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate alloc;
@@ -444,6 +583,13 @@ mod tests {
                     let mut arr = [0u8; $size];
                     arr.copy_from_slice(&input);
                     prop_assert_eq!(arr.to_base64(), base64::engine::general_purpose::STANDARD.encode(arr));
+                }
+
+                #[test_strategy::proptest]
+                fn [<test_base64_roundtrip_ $size>](#[strategy(vec(any::<u8>(), $size))] input: Vec<u8>) {
+                    let mut arr = [0u8; $size];
+                    arr.copy_from_slice(&input);
+                    prop_assert_eq!(<[u8; $size]>::from_base64(&arr.to_base64())?, arr);
                 }
 
                 #[test_strategy::proptest]
