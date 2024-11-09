@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-onlyerror = { version = "0.1.4", default-features = false }
 
 [dev-dependencies]
 base64 = { version = "0.22.1", features = ["alloc"] }
