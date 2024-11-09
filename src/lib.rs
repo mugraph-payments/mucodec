@@ -496,23 +496,36 @@ fn enc_translate(input: Simd<u8, 32>) -> Simd<u8, 32> {
 
 #[inline(always)]
 fn dec_translate(input: Simd<u8, 32>) -> Result<Simd<u8, 32>, Error> {
-    let mut result = Simd::splat(0u8);
+    // Create a static lookup table where valid chars map to their values, invalid chars map to 255
+    static DECODE_TABLE: [u8; 256] = {
+        let mut table = [255u8; 256];
+        let mut i = 0u8;
+        while i < 26 {
+            table[b'A' as usize + i as usize] = i;
+            table[b'a' as usize + i as usize] = i + 26;
+            i += 1;
+        }
+        let mut i = 0u8;
+        while i < 10 {
+            table[b'0' as usize + i as usize] = i + 52;
+            i += 1;
+        }
+        table[b'+' as usize] = 62;
+        table[b'/' as usize] = 63;
+        table[b'=' as usize] = 0;
+        table
+    };
 
+    let mut result = Simd::splat(0u8);
     for i in 0..32 {
-        result[i] = match input[i] {
-            b'A'..=b'Z' => input[i] - b'A',
-            b'a'..=b'z' => input[i] - b'a' + 26,
-            b'0'..=b'9' => input[i] - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            b'=' => 0,
-            _ => {
-                return Err(Error::InvalidData(format!(
-                    "Invalid base64 character: {}",
-                    input[i] as char
-                )))
-            }
-        };
+        let decoded = DECODE_TABLE[input[i] as usize];
+        if decoded == 255 {
+            return Err(Error::InvalidData(format!(
+                "Invalid base64 character: {}",
+                input[i] as char
+            )));
+        }
+        result[i] = decoded;
     }
 
     Ok(result)
@@ -543,17 +556,33 @@ fn dec_reshuffle(input: Simd<u8, 32>) -> Simd<u8, 32> {
 
 #[inline]
 fn dec_byte(input: u8) -> Result<u8, Error> {
-    match input {
-        b'A'..=b'Z' => Ok(input - b'A'),
-        b'a'..=b'z' => Ok(input - b'a' + 26),
-        b'0'..=b'9' => Ok(input - b'0' + 52),
-        b'+' => Ok(62),
-        b'/' => Ok(63),
-        _ => Err(Error::InvalidData(format!(
+    static DECODE_TABLE: [u8; 256] = {
+        let mut table = [255u8; 256];
+        let mut i = 0u8;
+        while i < 26 {
+            table[b'A' as usize + i as usize] = i;
+            table[b'a' as usize + i as usize] = i + 26;
+            i += 1;
+        }
+        let mut i = 0u8;
+        while i < 10 {
+            table[b'0' as usize + i as usize] = i + 52;
+            i += 1;
+        }
+        table[b'+' as usize] = 62;
+        table[b'/' as usize] = 63;
+        table[b'=' as usize] = 0;
+        table
+    };
+
+    let decoded = DECODE_TABLE[input as usize];
+    if decoded == 255 {
+        return Err(Error::InvalidData(format!(
             "Invalid base64 character: {}",
             input as char
-        ))),
+        )));
     }
+    Ok(decoded)
 }
 
 #[cfg(test)]
