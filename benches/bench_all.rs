@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use base64::Engine;
 use criterion::{
     black_box,
     criterion_group,

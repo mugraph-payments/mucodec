@@ -15,13 +15,11 @@ use rand::prelude::*;
 #[inline(always)]
 fn bench_to_hex(c: &mut Criterion<WallTime>) {
     let mut rng = TestRng::from_seed(RngAlgorithm::ChaCha, &[42u8; 32]);
-    let mut seed = vec![0u8; 16384];
-    rng.fill_bytes(&mut seed);
 
     macro_rules! bench_arr {
         ($size:expr) => {{
             let mut input = [0u8; $size];
-            input.copy_from_slice(&seed[..$size]);
+            rng.fill_bytes(&mut input);
 
             let mut group = c.benchmark_group("ReprHex::to_hex");
             group.throughput(Throughput::Bytes($size));
@@ -48,25 +46,30 @@ fn bench_to_hex(c: &mut Criterion<WallTime>) {
 #[inline(always)]
 fn bench_from_hex(c: &mut Criterion<WallTime>) {
     let mut rng = TestRng::from_seed(RngAlgorithm::ChaCha, &[42u8; 32]);
-    let mut seed = vec![0u8; 16384];
-    rng.fill_bytes(&mut seed);
 
     macro_rules! bench_arr {
         ($size:expr) => {{
             let mut input = [0u8; $size];
-            input.copy_from_slice(&seed[..$size]);
-            let hex_input = hex::encode(input);
+            rng.fill_bytes(&mut input);
 
             let mut group = c.benchmark_group("ReprHex::from_hex");
             group.throughput(Throughput::Bytes($size));
 
-            group.bench_with_input(BenchmarkId::new("native", $size), &hex_input, |b, i| {
-                b.iter(|| hex::decode(&i).unwrap());
-            });
+            group.bench_with_input(
+                BenchmarkId::new("native", $size),
+                &hex::encode(input),
+                |b, i| {
+                    b.iter(|| hex::decode(&i).unwrap());
+                },
+            );
 
-            group.bench_with_input(BenchmarkId::new("simd", $size), &hex_input, |b, i| {
-                b.iter(|| <[u8; $size]>::from_hex(&i).unwrap());
-            });
+            group.bench_with_input(
+                BenchmarkId::new("simd", $size),
+                &hex::encode(input),
+                |b, i| {
+                    b.iter(|| <[u8; $size]>::from_hex(&i).unwrap());
+                },
+            );
 
             group.finish();
         }};
