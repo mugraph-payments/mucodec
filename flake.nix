@@ -31,18 +31,16 @@
         RUSTFLAGS =
           {
             "x86_64-linux" = "-C target-feature=+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+avx,+avx2";
-            "x86_64-darwin" = "-C target-feature=+neon";
+            "aarch64-darwin" = "-C target-feature=+neon";
           }
-          .${system};
+          .${system} or "";
 
         packages.default = rustPlatform.buildRustPackage {
           name = "mucodec";
           src = ./.;
           buildFeatures = [
-            "blake2"
-            "blake3"
-            "sha2"
-            "sha3"
+            "proptest"
+            "rand"
           ];
           cargoLock.lockFile = ./Cargo.lock;
           env = {
