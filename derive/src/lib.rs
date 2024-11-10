@@ -110,11 +110,15 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     return err;
                 }
 
-                // Get field type
-                let (field_type, _span) = match group.parse_path() {
-                    Ok(ty) => ty,
-                    Err(err) => return err,
-                };
+                // Get field type including generic parameters
+                let mut field_type = String::new();
+                while let Some(token) = group.next() {
+                    match token {
+                        proc_macro::TokenTree::Punct(p) if p.as_char() == ',' => break,
+                        _ => field_type.push_str(&token.to_string()),
+                    }
+                }
+                field_type = field_type.trim().to_string();
 
                 fields.push((field_name, field_type));
 
@@ -129,22 +133,8 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
             // Generate implementation for struct with fields
             let mut output = String::new();
 
-            output.push_str(&format!(
-                "impl<const N: usize> ::mucodec::ReprBytes<N> for {} where [(); Self::SIZE]: Sized {{\n",
-                name
-            ));
-            output.push_str("    const SIZE: usize = ");
-
-            for (i, (_, field_type)) in fields.iter().enumerate() {
-                if i > 0 {
-                    output.push_str(" + ");
-                }
-                output.push_str(&format!("std::mem::size_of::<{}>() ", field_type));
-            }
-            output.push_str(";\n\n");
-
-            output.push_str("    fn from_bytes(input: [u8; N]) -> Self {\n");
-            output.push_str("        assert_eq!(N, Self::SIZE, \"Input size mismatch\");\n");
+            output.push_str(&format!("impl ::mucodec::ReprBytes<32> for {} {{\n", name));
+            output.push_str("    fn from_bytes(input: [u8; 32]) -> Self {\n");
             output.push_str("        let mut offset = 0;\n");
             output.push_str("        Self {\n");
 
@@ -164,9 +154,8 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
             output.push_str("        }\n");
             output.push_str("    }\n\n");
 
-            output.push_str("    fn as_bytes(&self) -> [u8; N] {\n");
-            output.push_str("        assert_eq!(N, Self::SIZE, \"Output size mismatch\");\n");
-            output.push_str("        let mut result = [0u8; N];\n");
+            output.push_str("    fn as_bytes(&self) -> [u8; 32] {\n");
+            output.push_str("        let mut result = [0u8; 32];\n");
             output.push_str("        let mut offset = 0;\n\n");
 
             for (field_name, field_type) in fields {
