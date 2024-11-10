@@ -1,18 +1,18 @@
 use mucodec::{Bytes, ReprBytes};
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct A(Bytes<64>);
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct B(A);
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct C {
     a: A,
     b: B,
 }
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct Data {
     a: A,
     b: B,

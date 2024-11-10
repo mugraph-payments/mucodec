@@ -1,6 +1,6 @@
 use mucodec::ReprBytes;
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct Empty;
 
 fn main() {
