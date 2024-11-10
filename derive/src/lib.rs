@@ -111,6 +111,7 @@ fn get_field_size(field_type: &Type) -> Result<usize, syn::Error> {
         Type::Path(type_path) => {
             let segment = type_path.path.segments.last().unwrap();
             if segment.ident == "Bytes" {
+                // Handle Bytes<N> type directly
                 match &segment.arguments {
                     syn::PathArguments::AngleBracketed(args) => {
                         if let syn::GenericArgument::Const(expr) = args.args.first().unwrap() {
@@ -140,12 +141,29 @@ fn get_field_size(field_type: &Type) -> Result<usize, syn::Error> {
             } else if segment.ident == "u128" {
                 Ok(16)
             } else {
-                Err(syn::Error::new_spanned(
-                    field_type,
-                    "Unsupported field type",
-                ))
+                // Handle primitive types
+                let type_name = segment.ident.to_string();
+                match type_name.as_str() {
+                    "u8" => Ok(mem::size_of::<u8>()),
+                    "u16" => Ok(mem::size_of::<u16>()),
+                    "u32" => Ok(mem::size_of::<u32>()),
+                    "u64" => Ok(mem::size_of::<u64>()),
+                    "u128" => Ok(mem::size_of::<u128>()),
+                    "usize" => Ok(mem::size_of::<usize>()),
+                    "i8" => Ok(mem::size_of::<i8>()),
+                    "i16" => Ok(mem::size_of::<i16>()),
+                    "i32" => Ok(mem::size_of::<i32>()),
+                    "i64" => Ok(mem::size_of::<i64>()),
+                    "i128" => Ok(mem::size_of::<i128>()),
+                    "isize" => Ok(mem::size_of::<isize>()),
+                    _ => Err(syn::Error::new_spanned(
+                        field_type,
+                        "Unsupported field type",
+                    )),
+                }
             }
         }
+        Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(0),
         _ => Err(syn::Error::new_spanned(field_type, "Unexpected field type")),
     }
 }
