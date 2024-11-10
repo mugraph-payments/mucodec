@@ -1,6 +1,6 @@
 use mucodec::{Bytes, ReprBytes};
 
-#[derive(Debug, PartialEq, ReprBytes)]
+#[derive(Debug, ReprBytes)]
 pub struct Unit(Bytes<32>);
 
 fn main() {

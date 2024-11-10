@@ -1,0 +1,40 @@
+error[E0277]: `Empty` doesn't implement `Debug`
+ --> tests/compile_fail/01-no-debug.rs:4:12
+  |
+4 | pub struct Empty;
+  |            ^^^^^ `Empty` cannot be formatted using `{:?}`
+  |
+  = help: the trait `Debug` is not implemented for `Empty`
+  = note: add `#[derive(Debug)]` to `Empty` or manually `impl Debug for Empty`
+note: required by a bound in `ReprBytes`
+ --> src/repr/bytes.rs
+  |
+  | pub trait ReprBytes<const N: usize>: Sized + Debug {
+  |                                              ^^^^^ required by this bound in `ReprBytes`
+help: consider annotating `Empty` with `#[derive(Debug)]`
+  |
+4  + #[derive(Debug)]
+5  | pub struct Empty;
+   |
+
+error[E0277]: `Empty` doesn't implement `Debug`
+ --> tests/compile_fail/01-no-debug.rs:7:22
+  |
+7 |     assert_eq!(Empty.as_bytes(), []);
+  |                      ^^^^^^^^ `Empty` cannot be formatted using `{:?}`
+  |
+  = help: the trait `Debug` is not implemented for `Empty`
+  = note: add `#[derive(Debug)]` to `Empty` or manually `impl Debug for Empty`
+note: required by a bound in `mucodec::ReprBytes::as_bytes`
+ --> src/repr/bytes.rs
+  |
+  | pub trait ReprBytes<const N: usize>: Sized + Debug {
+  |                                              ^^^^^ required by this bound in `ReprBytes::as_bytes`
+  |     fn from_bytes(input: [u8; N]) -> Self;
+  |     fn as_bytes(&self) -> [u8; N];
+  |        -------- required by a bound in this associated function
+help: consider annotating `Empty` with `#[derive(Debug)]`
+  |
+4  + #[derive(Debug)]
+5  | pub struct Empty;
+   |
