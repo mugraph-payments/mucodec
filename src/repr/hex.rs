@@ -10,13 +10,13 @@ pub trait ReprHex<const N: usize>: Sized + ReprBytes<N> {
 }
 
 macro_rules! impl_repr_num {
-    ($type:ty, $size:expr) => {
-        impl ReprHex<$size> for $type {
+    ($type:ty) => {
+        impl ReprHex<{ core::mem::size_of::<$type>() }> for $type {
             #[inline]
             fn to_hex(&self) -> String {
                 const LOOKUP: [u8; 16] = *b"0123456789abcdef";
                 let bytes = self.as_bytes();
-                let mut result = Vec::with_capacity($size * 2);
+                let mut result = Vec::with_capacity(core::mem::size_of::<$type>() * 2);
 
                 for byte in bytes {
                     result.push(LOOKUP[(byte >> 4) as usize]);
@@ -29,16 +29,16 @@ macro_rules! impl_repr_num {
 
             #[inline]
             fn from_hex(input: &str) -> Result<Self, Error> {
-                if input.len() != $size * 2 {
+                if input.len() != core::mem::size_of::<$type>() * 2 {
                     return Err(Error::InvalidData(format!(
                         "Invalid hex string length: expected {}, got {}",
-                        $size * 2,
+                        core::mem::size_of::<$type>() * 2,
                         input.len()
                     )));
                 }
 
                 let input = input.as_bytes();
-                let mut bytes = [0u8; $size];
+                let mut bytes = [0u8; core::mem::size_of::<$type>()];
 
                 for (i, chunk) in input.chunks_exact(2).enumerate() {
                     let hi = from_hex_digit(chunk[0])?;
@@ -63,13 +63,15 @@ pub(crate) fn from_hex_digit(digit: u8) -> Result<u8, Error> {
     }
 }
 
-impl_repr_num!(u8, 1);
-impl_repr_num!(u16, 2);
-impl_repr_num!(u32, 4);
-impl_repr_num!(u64, 8);
-impl_repr_num!(u128, 16);
-impl_repr_num!(i8, 1);
-impl_repr_num!(i16, 2);
-impl_repr_num!(i32, 4);
-impl_repr_num!(i64, 8);
-impl_repr_num!(i128, 16);
+impl_repr_num!(u8);
+impl_repr_num!(u16);
+impl_repr_num!(u32);
+impl_repr_num!(u64);
+impl_repr_num!(u128);
+impl_repr_num!(i8);
+impl_repr_num!(i16);
+impl_repr_num!(i32);
+impl_repr_num!(i64);
+impl_repr_num!(i128);
+impl_repr_num!(usize);
+impl_repr_num!(isize);

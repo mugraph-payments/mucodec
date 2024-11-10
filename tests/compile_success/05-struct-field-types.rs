@@ -1,6 +1,6 @@
 use mucodec::{Bytes, ReprBytes};
 
-#[derive(ReprBytes)]
+#[derive(Debug, PartialEq, ReprBytes)]
 pub struct Data {
     bytes1: Bytes<1>,
     bytes2: Bytes<24>,

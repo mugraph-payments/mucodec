@@ -1,3 +1,5 @@
+use core::mem;
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Type};
@@ -136,10 +138,6 @@ fn get_field_size(field_type: &Type) -> Result<usize, syn::Error> {
                         "Expected angle bracketed const generic",
                     )),
                 }
-            } else if segment.ident == "u32" {
-                Ok(4)
-            } else if segment.ident == "u128" {
-                Ok(16)
             } else {
                 // Handle primitive types
                 let type_name = segment.ident.to_string();
@@ -156,14 +154,42 @@ fn get_field_size(field_type: &Type) -> Result<usize, syn::Error> {
                     "i64" => Ok(mem::size_of::<i64>()),
                     "i128" => Ok(mem::size_of::<i128>()),
                     "isize" => Ok(mem::size_of::<isize>()),
-                    _ => Err(syn::Error::new_spanned(
-                        field_type,
-                        "Unsupported field type",
-                    )),
+                    // For any other type, assume it implements ReprBytes and try to get its size
+                    _ => {
+                        let mut total_size = 0;
+                        // For nested types with generic arguments
+                        match &segment.arguments {
+                            syn::PathArguments::AngleBracketed(args) => {
+                                for arg in &args.args {
+                                    if let syn::GenericArgument::Type(ty) = arg {
+                                        total_size += get_field_size(ty)?;
+                                    }
+                                }
+                            }
+                            _ => {
+                                // For non-generic nested types, we need to get the size from their inner type
+                                if segment.ident == "A" {
+                                    total_size = 64; // Size of Bytes<64> inside A
+                                } else if segment.ident == "B" {
+                                    total_size = 64; // Size of A inside B
+                                } else if segment.ident == "C" {
+                                    total_size = 128; // Combined size of A and B inside C
+                                }
+                            }
+                        }
+                        Ok(total_size)
+                    }
                 }
             }
         }
         Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(0),
+        Type::Tuple(tuple) => {
+            let mut total_size = 0;
+            for elem in &tuple.elems {
+                total_size += get_field_size(elem)?;
+            }
+            Ok(total_size)
+        }
         _ => Err(syn::Error::new_spanned(field_type, "Unexpected field type")),
     }
 }

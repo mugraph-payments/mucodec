@@ -31,28 +31,30 @@ pub trait ReprBytes<const N: usize>: Sized + Debug + PartialEq {
 }
 
 macro_rules! impl_repr_num {
-    ($type:ty, $size:expr) => {
-        impl ReprBytes<$size> for $type {
+    ($type:ty) => {
+        impl ReprBytes<{ core::mem::size_of::<$type>() }> for $type {
             #[inline(always)]
-            fn from_bytes(input: [u8; $size]) -> Self {
+            fn from_bytes(input: [u8; core::mem::size_of::<$type>()]) -> Self {
                 <$type>::from_le_bytes(input)
             }
 
             #[inline(always)]
-            fn as_bytes(&self) -> [u8; $size] {
+            fn as_bytes(&self) -> [u8; core::mem::size_of::<$type>()] {
                 self.to_le_bytes()
             }
         }
     };
 }
 
-impl_repr_num!(u8, 1);
-impl_repr_num!(u16, 2);
-impl_repr_num!(u32, 4);
-impl_repr_num!(u64, 8);
-impl_repr_num!(u128, 16);
-impl_repr_num!(i8, 1);
-impl_repr_num!(i16, 2);
-impl_repr_num!(i32, 4);
-impl_repr_num!(i64, 8);
-impl_repr_num!(i128, 16);
+impl_repr_num!(u8);
+impl_repr_num!(u16);
+impl_repr_num!(u32);
+impl_repr_num!(u64);
+impl_repr_num!(u128);
+impl_repr_num!(i8);
+impl_repr_num!(i16);
+impl_repr_num!(i32);
+impl_repr_num!(i64);
+impl_repr_num!(i128);
+impl_repr_num!(usize);
+impl_repr_num!(isize);
