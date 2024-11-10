@@ -8,6 +8,8 @@ use core::fmt::Debug;
 use crate::Error;
 
 pub trait ReprBytes<const N: usize>: Sized + Debug {
+    const SIZE: usize = N;
+
     fn from_bytes(input: [u8; N]) -> Self;
     fn as_bytes(&self) -> [u8; N];
 
@@ -33,6 +35,8 @@ pub trait ReprBytes<const N: usize>: Sized + Debug {
 macro_rules! impl_repr_num {
     ($type:ty) => {
         impl ReprBytes<{ core::mem::size_of::<$type>() }> for $type {
+            const SIZE: usize = core::mem::size_of::<$type>();
+
             #[inline(always)]
             fn from_bytes(input: [u8; core::mem::size_of::<$type>()]) -> Self {
                 <$type>::from_le_bytes(input)

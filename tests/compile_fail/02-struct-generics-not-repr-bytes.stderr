@@ -1,0 +1,28 @@
+error: Cannot determine size for type: T
+ --> tests/compile_fail/02-struct-generics-not-repr-bytes.rs:5:12
+  |
+5 |     inner: T,
+  |            ^
+
+warning: unused import: `Bytes`
+ --> tests/compile_fail/02-struct-generics-not-repr-bytes.rs:1:15
+  |
+1 | use mucodec::{Bytes, ReprBytes};
+  |               ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+error[E0599]: no function or associated item named `zero` found for struct `Data` in the current scope
+  --> tests/compile_fail/02-struct-generics-not-repr-bytes.rs:12:30
+   |
+4  | pub struct Data<T> {
+   | ------------------ function or associated item `zero` not found for this struct
+...
+12 |     let data = Data::<Fail>::zero();
+   |                              ^^^^ function or associated item not found in `Data<Fail>`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `zero`, perhaps you need to implement one of them:
+           candidate #1: `ReprBytes`
+           candidate #2: `bit_vec::BitBlock`
+           candidate #3: `zerocopy::FromZeroes`

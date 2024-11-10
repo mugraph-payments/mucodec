@@ -30,7 +30,7 @@ note: required by a bound in `mucodec::ReprBytes::as_bytes`
   |
   | pub trait ReprBytes<const N: usize>: Sized + Debug {
   |                                              ^^^^^ required by this bound in `ReprBytes::as_bytes`
-  |     fn from_bytes(input: [u8; N]) -> Self;
+...
   |     fn as_bytes(&self) -> [u8; N];
   |        -------- required by a bound in this associated function
 help: consider annotating `Empty` with `#[derive(Debug)]`
