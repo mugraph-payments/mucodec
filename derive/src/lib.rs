@@ -132,42 +132,127 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
 
             // Generate implementation for struct with fields
             let mut output = String::new();
+            let struct_name = name.to_string().trim().to_string();
 
-            output.push_str(&format!("impl ::mucodec::ReprBytes<32> for {} {{\n", name));
-            output.push_str("    fn from_bytes(input: [u8; 32]) -> Self {\n");
+            // Calculate total size from field types
+            let mut total_size = 0;
+            for (_, field_type) in &fields {
+                if field_type.contains("Bytes<") {
+                    let size = field_type
+                        .split('<')
+                        .nth(1)
+                        .unwrap()
+                        .split('>')
+                        .next()
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap();
+                    total_size += size;
+                } else if field_type == "u32" {
+                    total_size += 4;
+                } else if field_type == "u128" {
+                    total_size += 16;
+                }
+            }
+
+            output.push_str(&format!(
+                "impl ::mucodec::ReprBytes<{}> for {} {{\n",
+                total_size, struct_name
+            ));
+
+            // Implement from_bytes
+            output.push_str(&format!(
+                "    fn from_bytes(input: [u8; {}]) -> Self {{\n",
+                total_size
+            ));
             output.push_str("        let mut offset = 0;\n");
             output.push_str("        Self {\n");
 
             for (field_name, field_type) in &fields {
+                let field_size = if field_type.contains("Bytes<") {
+                    field_type
+                        .split('<')
+                        .nth(1)
+                        .unwrap()
+                        .split('>')
+                        .next()
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap()
+                } else if field_type == "u32" {
+                    4
+                } else if field_type == "u128" {
+                    16
+                } else {
+                    panic!("Unsupported type")
+                };
+
                 output.push_str(&format!(
                     "            {}: {{
-                        let size = std::mem::size_of::<{}>();
-                        let mut bytes = [0u8; std::mem::size_of::<{}>()];
-                        bytes.copy_from_slice(&input[offset..offset + size]);
-                        offset += size;
-                        <{}>::from_bytes(bytes)
-                    }},\n",
-                    field_name, field_type, field_type, field_type
+                let mut bytes = [0u8; {}];
+                bytes.copy_from_slice(&input[offset..offset + {}]);
+                offset += {};
+                <{}>::from_bytes(bytes)
+            }},\n",
+                    field_name, field_size, field_size, field_size, field_type
                 ));
             }
 
             output.push_str("        }\n");
             output.push_str("    }\n\n");
 
-            output.push_str("    fn as_bytes(&self) -> [u8; 32] {\n");
-            output.push_str("        let mut result = [0u8; 32];\n");
+            // Add zero implementation
+            output.push_str("    #[inline(always)]\n");
+            output.push_str("    fn zero() -> Self {\n");
+            output.push_str("        Self {\n");
+            for (field_name, field_type) in &fields {
+                output.push_str(&format!(
+                    "            {}: <{}>::zero(),\n",
+                    field_name, field_type
+                ));
+            }
+            output.push_str("        }\n");
+            output.push_str("    }\n\n");
+
+            // Add as_bytes implementation
+            output.push_str(&format!(
+                "    fn as_bytes(&self) -> [u8; {}] {{\n",
+                total_size
+            ));
+            output.push_str(&format!(
+                "        let mut result = [0u8; {}];\n",
+                total_size
+            ));
             output.push_str("        let mut offset = 0;\n\n");
 
             for (field_name, field_type) in fields {
+                let field_size = if field_type.contains("Bytes<") {
+                    field_type
+                        .split('<')
+                        .nth(1)
+                        .unwrap()
+                        .split('>')
+                        .next()
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap()
+                } else if field_type == "u32" {
+                    4
+                } else if field_type == "u128" {
+                    16
+                } else {
+                    panic!("Unsupported type")
+                };
+
                 output.push_str(&format!(
-                    "        {{
-                    let bytes = self.{}.as_bytes();
-                    let size = std::mem::size_of::<{}>();
-                    result[offset..offset + size].copy_from_slice(&bytes);
-                    offset += size;
-                }}\n",
-                    field_name, field_type
+                    "        let bytes = self.{}.as_bytes();\n",
+                    field_name
                 ));
+                output.push_str(&format!(
+                    "        result[offset..offset + {}].copy_from_slice(&bytes);\n",
+                    field_size
+                ));
+                output.push_str(&format!("        offset += {};\n\n", field_size));
             }
 
             output.push_str("        result\n");
