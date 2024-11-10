@@ -1,7 +1,7 @@
 use myn::prelude::*;
-use proc_macro::TokenStream;
+use proc_macro::{Delimiter, TokenStream};
 
-#[proc_macro_derive(Encode)]
+#[proc_macro_derive(ReprBytes)]
 pub fn derive_encode(input: TokenStream) -> TokenStream {
     let mut input = input.into_token_iter();
 
@@ -26,10 +26,73 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
         Err(err) => return err,
     };
 
-    // Parse struct fields in braces
-    let fields = match input.expect_group(Delimiter::Brace) {
-        Ok(mut group) => {
+    // Check next token to determine struct type
+    match input.peek() {
+        // Tuple struct with parentheses
+        Some(proc_macro::TokenTree::Group(group)) if group.delimiter() == Delimiter::Parenthesis => {
+            let group_stream = group.stream();
+            let mut group = group_stream.into_token_iter();
+            input.next(); // Consume the group token
+
+            // Parse the full type including any generic parameters
+            let mut field_type = String::new();
+            while let Some(token) = group.next() {
+                field_type.push_str(&token.to_string());
+            }
+
+            // Generate implementation for tuple struct
+            let mut output = String::new();
+            output.push_str(&format!("impl ::mucodec::ReprBytes<32> for {} {{\n", name));
+            output.push_str("    fn from_bytes(input: [u8; 32]) -> Self {\n");
+            output.push_str(&format!(
+                "        Self(<{}>::from_bytes(input))\n",
+                field_type
+            ));
+            output.push_str("    }\n\n");
+            output.push_str("    fn as_bytes(&self) -> [u8; 32] {\n");
+            output.push_str("        self.0.as_bytes()\n");
+            output.push_str("    }\n");
+            output.push_str("}\n");
+
+            return output.parse().unwrap();
+        }
+        // Unit struct with semicolon
+        Some(token) if token.to_string() == ";" => {
+            let mut output = String::new();
+            output.push_str(&format!("impl ::mucodec::ReprBytes<0> for {} {{\n", name));
+            output.push_str("    fn from_bytes(_input: [u8; 0]) -> Self {\n");
+            output.push_str("        Self\n");
+            output.push_str("    }\n\n");
+            output.push_str("    fn as_bytes(&self) -> [u8; 0] {\n");
+            output.push_str("        []\n");
+            output.push_str("    }\n");
+            output.push_str("}\n");
+
+            return output.parse().unwrap();
+        }
+        // Empty struct with braces or normal struct with fields
+        Some(proc_macro::TokenTree::Group(group)) if group.delimiter() == Delimiter::Brace => {
+            let group_stream = group.stream();
+            let mut group = group_stream.into_token_iter();
+            input.next(); // Consume the group token after we've captured its contents
+
+            // If group is empty, generate implementation for empty struct
+            if group.peek().is_none() {
+                let mut output = String::new();
+                output.push_str(&format!("impl ::mucodec::ReprBytes<0> for {} {{\n", name));
+                output.push_str("    fn from_bytes(_input: [u8; 0]) -> Self {\n");
+                output.push_str("        Self {}\n");
+                output.push_str("    }\n\n");
+                output.push_str("    fn as_bytes(&self) -> [u8; 0] {\n");
+                output.push_str("        []\n");
+                output.push_str("    }\n");
+                output.push_str("}\n");
+
+                return output.parse().unwrap();
+            }
+
             let mut fields = Vec::new();
+            let mut group = group;
             while group.peek().is_some() {
                 // Parse field visibility
                 if let Err(err) = group.parse_visibility() {
@@ -62,56 +125,72 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
                     }
                 }
             }
-            fields
+
+            // Generate implementation for struct with fields
+            let mut output = String::new();
+
+            output.push_str(&format!(
+                "impl<const N: usize> ::mucodec::ReprBytes<N> for {} where [(); Self::SIZE]: Sized {{\n",
+                name
+            ));
+            output.push_str("    const SIZE: usize = ");
+
+            for (i, (_, field_type)) in fields.iter().enumerate() {
+                if i > 0 {
+                    output.push_str(" + ");
+                }
+                output.push_str(&format!("std::mem::size_of::<{}>() ", field_type));
+            }
+            output.push_str(";\n\n");
+
+            output.push_str("    fn from_bytes(input: [u8; N]) -> Self {\n");
+            output.push_str("        assert_eq!(N, Self::SIZE, \"Input size mismatch\");\n");
+            output.push_str("        let mut offset = 0;\n");
+            output.push_str("        Self {\n");
+
+            for (field_name, field_type) in &fields {
+                output.push_str(&format!(
+                    "            {}: {{
+                        let size = std::mem::size_of::<{}>();
+                        let mut bytes = [0u8; std::mem::size_of::<{}>()];
+                        bytes.copy_from_slice(&input[offset..offset + size]);
+                        offset += size;
+                        <{}>::from_bytes(bytes)
+                    }},\n",
+                    field_name, field_type, field_type, field_type
+                ));
+            }
+
+            output.push_str("        }\n");
+            output.push_str("    }\n\n");
+
+            output.push_str("    fn as_bytes(&self) -> [u8; N] {\n");
+            output.push_str("        assert_eq!(N, Self::SIZE, \"Output size mismatch\");\n");
+            output.push_str("        let mut result = [0u8; N];\n");
+            output.push_str("        let mut offset = 0;\n\n");
+
+            for (field_name, field_type) in fields {
+                output.push_str(&format!(
+                    "        {{
+                    let bytes = self.{}.as_bytes();
+                    let size = std::mem::size_of::<{}>();
+                    result[offset..offset + size].copy_from_slice(&bytes);
+                    offset += size;
+                }}\n",
+                    field_name, field_type
+                ));
+            }
+
+            output.push_str("        result\n");
+            output.push_str("    }\n");
+            output.push_str("}\n");
+
+            return output.parse().unwrap();
         }
-        Err(err) => return err,
-    };
-
-    // Generate implementation
-    let mut output = String::new();
-    output.push_str(&format!(
-        "impl ReprBytes<{{std::mem::size_of::<{}>()}}> for {} {{\n",
-        name, name
-    ));
-    output.push_str("    fn from_bytes(input: [u8; Self::SIZE]) -> Self {\n");
-    output.push_str("        let mut offset = 0;\n");
-    output.push_str("        Self {\n");
-
-    for (field_name, field_type) in &fields {
-        output.push_str(&format!(
-            "            {}: {{
-                let size = std::mem::size_of::<{}>();
-                let mut bytes = [0u8; std::mem::size_of::<{}>()];
-                bytes.copy_from_slice(&input[offset..offset + size]);
-                offset += size;
-                <{}>::from_bytes(bytes)
-            }},\n",
-            field_name, field_type, field_type, field_type
-        ));
+        _ => {
+            return "compile_error!(\"Expected struct definition\")"
+                .parse()
+                .unwrap()
+        }
     }
-
-    output.push_str("        }\n");
-    output.push_str("    }\n\n");
-
-    output.push_str("    fn as_bytes(&self) -> [u8; Self::SIZE] {\n");
-    output.push_str("        let mut result = [0u8; Self::SIZE];\n");
-    output.push_str("        let mut offset = 0;\n\n");
-
-    for (field_name, field_type) in fields {
-        output.push_str(&format!(
-            "        {{
-            let bytes = self.{}.as_bytes();
-            let size = std::mem::size_of::<{}>();
-            result[offset..offset + size].copy_from_slice(&bytes);
-            offset += size;
-        }}\n",
-            field_name, field_type
-        ));
-    }
-
-    output.push_str("        result\n");
-    output.push_str("    }\n");
-    output.push_str("}\n");
-
-    output.parse().unwrap()
 }
