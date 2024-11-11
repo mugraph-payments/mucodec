@@ -7,6 +7,7 @@ extern crate alloc;
 
 mod bytes;
 mod error;
+mod list;
 mod repr;
 
 #[cfg(feature = "derive")]

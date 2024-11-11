@@ -39,6 +39,7 @@
           name = "mucodec";
           src = ./.;
           buildFeatures = [
+            "derive"
             "proptest"
             "rand"
           ];
