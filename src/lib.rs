@@ -16,4 +16,4 @@ extern crate mucodec_derive;
 #[cfg(feature = "derive")]
 pub use mucodec_derive::*;
 
-pub use self::{bytes::Bytes, error::Error, repr::*};
+pub use self::{bytes::Bytes, error::Error, list::*, repr::*};

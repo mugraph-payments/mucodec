@@ -30,6 +30,12 @@ rand = ["dep:rand"]
 derive = ["dep:mucodec-derive"]
 
 [[bench]]
+name = "list"
+path = "benches/list.rs"
+harness = false
+required-features = ["rand"]
+
+[[bench]]
 name = "from_hex"
 path = "benches/from_hex.rs"
 harness = false
