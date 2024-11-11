@@ -2,7 +2,7 @@
 
 A `no_std`, no dependencies*, fully deterministic, `nightly` only serialization and deserialization library, optimized for speed and reliability.
 
-*\*: Only the base crate, if you enable the `derive` feature then we depend on [`syn`](https://docs.rs/syn).*
+*\*: Only the base crate. There are a handful of optionals dependencies that can be enabled with feature flags.*
 
 ## Non-Goals
 
@@ -15,9 +15,11 @@ A `no_std`, no dependencies*, fully deterministic, `nightly` only serialization 
 
 * [x] Hexadecimal Encoding/Decoding
 * [x] Base64 Encoding/Decoding
-* [x] `Encode` derive macro
-* [x] `Decode` derive macro
-* [ ] Integer Binary Encoding
+* [x] `serde`-like derive macro
+* [x] Packed Integer `List` Container
+* [x] Fixed-size `Bytes` Container
+* [x] Fixed-size `String` Container
+
 
 ## Licensing
 
