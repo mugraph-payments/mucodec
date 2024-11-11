@@ -25,7 +25,7 @@ fn bench_from_base64(c: &mut Criterion<WallTime>) {
             BenchmarkId::new("from_base64 (native)", N),
             &input,
             |b, i| {
-                b.iter(|| STANDARD.decode(&*i).unwrap());
+                b.iter(|| STANDARD.decode(i).unwrap());
             },
         );
 

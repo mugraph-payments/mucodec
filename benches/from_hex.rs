@@ -21,7 +21,7 @@ fn bench_from_hex(c: &mut Criterion<WallTime>) {
         group.throughput(Throughput::Bytes(N as u64));
 
         group.bench_with_input(BenchmarkId::new("from_hex (native)", N), &input, |b, i| {
-            b.iter(|| hex::decode(&i).unwrap());
+            b.iter(|| hex::decode(i).unwrap());
         });
 
         group.bench_with_input(BenchmarkId::new("from_hex (simd)", N), &input, |b, i| {
