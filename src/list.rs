@@ -3,20 +3,12 @@ use core::{fmt, mem::size_of, ops::Deref, simd::*};
 
 use crate::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct ListU16<const N: usize>([u16; N]);
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct ListU32<const N: usize>([u32; N]);
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct ListU64<const N: usize>([u64; N]);
-
 macro_rules! impl_list {
     ($type:ty, $list_type:ident, $simd_type:ty, $lanes:ty) => {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[repr(transparent)]
+        pub struct $list_type<const N: usize>([$type; N]);
+
         #[allow(dead_code)]
         impl<const N: usize> $list_type<N>
         where
