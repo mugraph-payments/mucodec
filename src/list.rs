@@ -63,6 +63,11 @@ macro_rules! impl_list {
             }
 
             fn unpack(bit_width: usize, input: &[u8]) -> Result<Self, Error> {
+                // Special case: if bit_width is 0, all values are 0
+                if bit_width == 0 {
+                    return Ok(Self([0; N]));
+                }
+
                 let expected_size = (N * bit_width + 7) / 8;
                 if input.len() != expected_size {
                     return Err(Error::InvalidDataSize {
@@ -197,6 +202,14 @@ mod tests {
                     }
 
                     $(
+                        #[test]
+                        fn [<test_pack_zero_ $size>]() {
+                            let input =  $list_type::<$size>::zero();
+                            let (bit_width, packed) = input.pack();
+
+                            assert_eq!($list_type::<$size>::unpack(bit_width, &packed).unwrap(), input);
+                        }
+
                         #[test_strategy::proptest]
                         fn [<test_pack_roundtrip_ $size>](
                             #[strategy(list::<$size>(((1u128 << 16) - 1).min(<$type>::MAX.into()) as $type))]
