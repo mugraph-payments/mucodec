@@ -1,6 +1,6 @@
 #![allow(incomplete_features)]
 
-use alloc::{format, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 
 use crate::{Error, ReprBytes};
 
@@ -33,11 +33,10 @@ macro_rules! impl_repr_num {
             #[inline]
             fn from_hex(input: &str) -> Result<Self, Error> {
                 if input.len() != Self::HEX_SIZE {
-                    return Err(Error::InvalidData(format!(
-                        "Invalid hex string length: expected {}, got {}",
-                        Self::HEX_SIZE,
-                        input.len()
-                    )));
+                    return Err(Error::InvalidDataSize {
+                        expected: Self::HEX_SIZE,
+                        got: input.len(),
+                    });
                 }
 
                 let input = input.as_bytes();
@@ -59,10 +58,7 @@ pub(crate) fn from_hex_digit(digit: u8) -> Result<u8, Error> {
     match digit {
         b'0'..=b'9' => Ok(digit - b'0'),
         b'a'..=b'f' => Ok(digit - b'a' + 10),
-        _ => Err(Error::InvalidData(format!(
-            "Invalid hex digit: {}",
-            digit as char
-        ))),
+        _ => Err(Error::InvalidHexDigit(digit as char)),
     }
 }
 

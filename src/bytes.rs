@@ -1,8 +1,4 @@
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use core::{
     fmt,
     ops::Deref,
@@ -119,11 +115,10 @@ impl<const N: usize> ReprHex<N> for Bytes<N> {
     #[inline]
     fn from_hex(input: &str) -> Result<Self, Error> {
         if input.len() != N * 2 {
-            return Err(Error::InvalidData(format!(
-                "Invalid hex string length: expected {}, got {}",
-                N * 2,
-                input.len()
-            )));
+            return Err(Error::InvalidDataSize {
+                expected: N * 2,
+                got: input.len(),
+            });
         }
 
         let input = input.as_bytes();
@@ -139,7 +134,15 @@ impl<const N: usize> ReprHex<N> for Bytes<N> {
 
             // Validate that all input chars were valid hex digits
             if !(is_digit | is_alpha).all() {
-                return Err(Error::InvalidData("Invalid hex digit".to_string()));
+                // Use first invalid character found for the error
+                let chars = v.to_array();
+                for &c in &chars {
+                    if !(c.is_ascii_digit() || (b'a'..=b'f').contains(&c)) {
+                        return Err(Error::InvalidHexDigit(c as char));
+                    }
+                }
+                // Unreachable as we know there's an invalid char
+                unreachable!()
             }
 
             // Convert ASCII hex to values
@@ -244,11 +247,10 @@ impl<const N: usize> ReprBase64<N> for Bytes<N> {
     #[inline]
     fn from_base64(input: &str) -> Result<Self, Error> {
         if input.len() != Self::BASE64_SIZE {
-            return Err(Error::InvalidData(format!(
-                "Invalid base64 string length: expected {}, got {}",
-                Self::BASE64_SIZE,
-                input.len()
-            )));
+            return Err(Error::InvalidDataSize {
+                expected: Self::BASE64_SIZE,
+                got: input.len(),
+            });
         }
 
         let input = input.as_bytes();
@@ -380,10 +382,7 @@ fn dec_translate(input: Simd<u8, 32>) -> Result<Simd<u8, 32>, Error> {
     for i in 0..32 {
         let decoded = DECODE_TABLE[input[i] as usize];
         if decoded == 255 {
-            return Err(Error::InvalidData(format!(
-                "Invalid base64 character: {}",
-                input[i] as char
-            )));
+            return Err(Error::InvalidBase64Character(input[i] as char));
         }
         result[i] = decoded;
     }
@@ -437,10 +436,7 @@ fn dec_byte(input: u8) -> Result<u8, Error> {
 
     let decoded = DECODE_TABLE[input as usize];
     if decoded == 255 {
-        return Err(Error::InvalidData(format!(
-            "Invalid base64 character: {}",
-            input as char
-        )));
+        return Err(Error::InvalidBase64Character(input as char));
     }
     Ok(decoded)
 }

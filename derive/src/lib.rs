@@ -2,6 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, punctuated::Punctuated, Data, DeriveInput, Fields, Type};
 
+type FieldInfo = Vec<(syn::Member, Type, usize)>;
+
 #[proc_macro_derive(ReprBytes)]
 pub fn derive_encode(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -82,7 +84,7 @@ pub fn derive_encode(input: TokenStream) -> TokenStream {
 fn get_field_info(
     data: &Data,
     generic_params: &[(syn::Ident, &Punctuated<syn::TypeParamBound, syn::Token![+]>)],
-) -> Result<(usize, Vec<(syn::Member, Type, usize)>), syn::Error> {
+) -> Result<(usize, FieldInfo), syn::Error> {
     match data {
         Data::Struct(data) => {
             let mut total_size = 0;
@@ -145,14 +147,12 @@ fn get_field_size(
                 // Handle Bytes<N> type
                 "Bytes" => {
                     if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                        if let Some(syn::GenericArgument::Const(expr)) = args.args.first() {
-                            if let syn::Expr::Lit(syn::ExprLit {
-                                lit: syn::Lit::Int(size),
-                                ..
-                            }) = expr
-                            {
-                                return Ok(size.base10_parse().unwrap());
-                            }
+                        if let Some(syn::GenericArgument::Const(syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Int(size),
+                            ..
+                        }))) = args.args.first()
+                        {
+                            return Ok(size.base10_parse().unwrap());
                         }
                     }
                     Err(syn::Error::new_spanned(segment, "Invalid Bytes type"))
@@ -182,16 +182,14 @@ fn get_field_size(
                                             }
                                         })
                                     {
-                                        if let Some(syn::GenericArgument::Const(expr)) =
-                                            args.args.first()
-                                        {
-                                            if let syn::Expr::Lit(syn::ExprLit {
+                                        if let Some(syn::GenericArgument::Const(syn::Expr::Lit(
+                                            syn::ExprLit {
                                                 lit: syn::Lit::Int(size),
                                                 ..
-                                            }) = expr
-                                            {
-                                                return Ok(size.base10_parse().unwrap());
-                                            }
+                                            },
+                                        ))) = args.args.first()
+                                        {
+                                            return Ok(size.base10_parse().unwrap());
                                         }
                                     }
                                 }

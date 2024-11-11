@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::{format, string::String};
+use alloc::string::String;
 
 use crate::{Bytes, Error, ReprBytes};
 
@@ -23,11 +23,10 @@ macro_rules! impl_repr_num {
 
             fn from_base64(input: &str) -> Result<Self, Error> {
                 if input.len() != Self::BASE64_SIZE {
-                    return Err(Error::InvalidData(format!(
-                        "Invalid base64 string length: expected {}, got {}",
-                        Self::BASE64_SIZE,
-                        input.len()
-                    )));
+                    return Err(Error::InvalidDataSize {
+                        expected: Self::BASE64_SIZE,
+                        got: input.len(),
+                    });
                 }
 
                 let bytes = Bytes::<{ core::mem::size_of::<$type>() }>::from_base64(input)?;
