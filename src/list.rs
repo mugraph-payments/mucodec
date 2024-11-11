@@ -24,79 +24,72 @@ macro_rules! impl_list {
                 Self(out)
             }
 
-            pub fn pack<const B: usize>(&self) -> Vec<u8> {
-                let mut out = Vec::with_capacity(N * B / 8);
-                let mask = if B < (size_of::<$type>() * 8) { ((1 << B) - 1) as $type } else { <$type>::MAX };
+            pub fn pack(&self) -> (usize, Vec<u8>) {
+                // Find maximum value to determine required bits
+                let max_val = self.0.iter().copied().max().unwrap_or(0);
+                let bit_width = if max_val == 0 {
+                    0
+                } else {
+                    (core::mem::size_of::<$type>() * 8) - max_val.leading_zeros() as usize
+                };
 
+                // Calculate packed size in bytes (rounding up)
+                let byte_size = (N * bit_width + 7) / 8;
+                let mut out = Vec::with_capacity(byte_size);
+                let mask = if bit_width < (size_of::<$type>() * 8) {
+                    ((1 as $type) << bit_width) - 1
+                } else {
+                    <$type>::MAX
+                };
+
+                // Pack values using determined bit width
                 for &item in self.0.iter() {
-                    out.extend_from_slice(&(item & mask).to_le_bytes()[..B / 8]);
+                    let bytes = (item & mask).to_le_bytes();
+                    out.extend_from_slice(&bytes[..((bit_width + 7) / 8)]);
                 }
 
-                out
+                // Trim any excess capacity
+                out.truncate(byte_size);
+
+                (bit_width, out)
             }
 
-            pub fn unpack<const B: usize>(input: &[u8]) -> Result<Self, Error> {
-                if input.len() != N * B / 8 {
+            pub fn unpack(bit_width: usize, input: &[u8]) -> Result<Self, Error> {
+                let expected_size = (N * bit_width + 7) / 8;
+                if input.len() != expected_size {
                     return Err(Error::InvalidDataSize {
-                        expected: N * B / 8,
+                        expected: expected_size,
                         got: input.len(),
                     });
                 }
 
                 let mut out = [0; N];
-                let mask = if B < (size_of::<$type>() * 8) { ((1 << B) - 1) as $type } else { <$type>::MAX };
+                let mask = if bit_width < (size_of::<$type>() * 8) {
+                    ((1 as $type) << bit_width) - 1
+                } else {
+                    <$type>::MAX
+                };
 
-                for (i, chunk) in input.chunks_exact(B / 8).enumerate() {
+                let bytes_per_value = (bit_width + 7) / 8;
+                for (i, chunk) in input.chunks(bytes_per_value).enumerate() {
+                    if i >= N {
+                        break;
+                    }
+
                     let mut bytes = [0u8; size_of::<$type>()];
-                    bytes[..B / 8].copy_from_slice(chunk);
+                    bytes[..chunk.len()].copy_from_slice(chunk);
                     let value = <$type>::from_le_bytes(bytes);
 
                     out[i] = value & mask;
                 }
-                Ok(Self(out))
-            }
 
-            pub const fn pack_len(bit: usize) -> usize {
-                bit / 8
+                Ok(Self(out))
             }
         }
 
         impl<const N: usize> fmt::Debug for $list_type<N> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{:?}", self.0)
-            }
-        }
-
-        #[cfg(test)]
-        paste::paste! {
-            mod [<$list_type:snake _tests>] {
-                use super::*;
-                use proptest::prelude::*;
-
-                fn list<const N: usize>(max_value: $type) -> impl Strategy<Value = $list_type<N>> {
-                    prop::collection::vec(0..=max_value, N)
-                        .prop_map(|v| $list_type(v.try_into().unwrap()))
-                }
-
-                #[test_strategy::proptest]
-                fn test_pack_roundtrip_8bit(#[strategy(list::<8>(((1u128 << 8) - 1).min(<$type>::MAX.into()) as $type))] input: $list_type<8>) {
-                    prop_assert_eq!($list_type::<8>::unpack::<8>(&input.pack::<8>())?, input);
-                }
-
-                #[test_strategy::proptest]
-                fn test_pack_roundtrip_16bit(#[strategy(list::<16>(((1u128 << 16) - 1).min(<$type>::MAX.into()) as $type))] input: $list_type<16>) {
-                    prop_assert_eq!($list_type::<16>::unpack::<16>(&input.pack::<16>())?, input);
-                }
-
-                #[test_strategy::proptest]
-                fn test_roundtrip_8bit(#[strategy(list::<16>(<$type>::MAX))] input: $list_type<16>) {
-                    prop_assert_eq!(<$list_type<16>>::from_bytes(input.as_bytes()), input);
-                }
-
-                #[test_strategy::proptest]
-                fn test_roundtrip_16bit(#[strategy(list::<16>(<$type>::MAX))] input: $list_type<16>) {
-                    prop_assert_eq!(<$list_type<16>>::from_bytes(input.as_bytes()), input);
-                }
             }
         }
 
@@ -162,3 +155,59 @@ macro_rules! impl_list {
 impl_list!(u16, ListU16, u16x4, LaneCount<4>);
 impl_list!(u32, ListU32, u32x4, LaneCount<4>);
 impl_list!(u64, ListU64, u64x2, LaneCount<2>);
+
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    macro_rules! generate_tests {
+        ($list_type:ident, $type:ty, $($size:expr),+) => {
+            paste::paste! {
+                mod [<$list_type:snake _tests>] {
+                    use core::mem::size_of_val;
+
+                    use super::*;
+
+                    fn list<const N: usize>(max_value: $type) -> impl Strategy<Value = $list_type<N>> {
+                        prop::collection::vec(0..=max_value, N)
+                            .prop_map(|v| $list_type(v.try_into().unwrap()))
+                    }
+
+                    $(
+                        #[test_strategy::proptest]
+                        fn [<test_pack_roundtrip_ $size>](
+                            #[strategy(list::<$size>(((1u128 << 16) - 1).min(<$type>::MAX.into()) as $type))]
+                            input: $list_type<$size>
+                        ) {
+                            let (bit_width, packed) = input.pack();
+                            prop_assert_eq!($list_type::<$size>::unpack(bit_width, &packed).unwrap(), input);
+                        }
+
+                        #[test_strategy::proptest]
+                        fn [<test_pack_compression_ $size>](
+                            #[strategy(list::<$size>(((1u128 << 16) - 1).min(<$type>::MAX.into()) as $type))]
+                            input: $list_type<$size>
+                        ) {
+                            let (_, packed) = input.pack();
+                            prop_assert!(packed.len() <= size_of_val(&input));
+                        }
+
+                        #[test_strategy::proptest]
+                        fn [<test_roundtrip_ $size>](
+                            #[strategy(list::<$size>(<$type>::MAX))]
+                            input: $list_type<$size>
+                        ) {
+                            prop_assert_eq!(<$list_type<$size>>::from_bytes(input.as_bytes()), input);
+                        }
+                    )*
+                }
+            }
+        };
+    }
+
+    generate_tests!(ListU16, u16, 32, 128, 512, 2048);
+    generate_tests!(ListU32, u32, 32, 128, 512, 2048);
+    generate_tests!(ListU64, u64, 32, 128, 512, 2048);
+}

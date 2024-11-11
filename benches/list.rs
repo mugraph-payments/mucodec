@@ -23,18 +23,22 @@ fn bench_pack_unpack(c: &mut Criterion<WallTime>) {
         L: ReprBytes<{ N * (BIT_SIZE / 8) }> + Clone + 'static,
     {
         let input = L::zero();
-        let packed_data = input.as_bytes();
+        let (bit_width, packed_data) = input.pack();
 
-        let mut group = c.benchmark_group(format!("Pack/Unpack {}-bit", BIT_SIZE));
-        group.throughput(Throughput::Bytes(N as u64 * (BIT_SIZE / 8) as u64));
+        let mut group = c.benchmark_group(format!("Pack/Unpack {}-bit", bit_width));
+        group.throughput(Throughput::Bytes(packed_data.len() as u64));
 
         group.bench_with_input(BenchmarkId::new("pack", N), &input, |b, i: &L| {
-            b.iter(|| i.as_bytes());
+            b.iter(|| i.pack());
         });
 
-        group.bench_with_input(BenchmarkId::new("unpack", N), &packed_data, |b, data| {
-            b.iter(|| L::from_bytes(*data));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("unpack", N),
+            &(&bit_width, &packed_data),
+            |b, (width, data)| {
+                b.iter(|| L::unpack(*width, data));
+            },
+        );
 
         group.finish();
     }
