@@ -5,6 +5,9 @@ use alloc::{format, string::String, vec::Vec};
 use crate::{Error, ReprBytes};
 
 pub trait ReprHex<const N: usize>: Sized + ReprBytes<N> {
+    // Add this constant - it will always be N * 2 for hex encoding
+    const HEX_SIZE: usize = N * 2;
+
     fn to_hex(&self) -> String;
     fn from_hex(input: &str) -> Result<Self, Error>;
 }
@@ -16,7 +19,7 @@ macro_rules! impl_repr_num {
             fn to_hex(&self) -> String {
                 const LOOKUP: [u8; 16] = *b"0123456789abcdef";
                 let bytes = self.as_bytes();
-                let mut result = Vec::with_capacity(core::mem::size_of::<$type>() * 2);
+                let mut result = Vec::with_capacity(Self::HEX_SIZE);
 
                 for byte in bytes {
                     result.push(LOOKUP[(byte >> 4) as usize]);
@@ -29,16 +32,16 @@ macro_rules! impl_repr_num {
 
             #[inline]
             fn from_hex(input: &str) -> Result<Self, Error> {
-                if input.len() != core::mem::size_of::<$type>() * 2 {
+                if input.len() != Self::HEX_SIZE {
                     return Err(Error::InvalidData(format!(
                         "Invalid hex string length: expected {}, got {}",
-                        core::mem::size_of::<$type>() * 2,
+                        Self::HEX_SIZE,
                         input.len()
                     )));
                 }
 
                 let input = input.as_bytes();
-                let mut bytes = [0u8; core::mem::size_of::<$type>()];
+                let mut bytes = [0u8; { core::mem::size_of::<$type>() }];
 
                 for (i, chunk) in input.chunks_exact(2).enumerate() {
                     let hi = from_hex_digit(chunk[0])?;

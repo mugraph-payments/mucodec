@@ -243,13 +243,10 @@ impl<const N: usize> ReprBase64<N> for Bytes<N> {
 
     #[inline]
     fn from_base64(input: &str) -> Result<Self, Error> {
-        // Calculate expected base64 length (including padding)
-        let expected_len: usize = (N + 2) / 3 * 4;
-
-        if input.len() != expected_len {
+        if input.len() != Self::BASE64_SIZE {
             return Err(Error::InvalidData(format!(
                 "Invalid base64 string length: expected {}, got {}",
-                expected_len,
+                Self::BASE64_SIZE,
                 input.len()
             )));
         }
