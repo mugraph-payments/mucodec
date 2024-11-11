@@ -31,6 +31,7 @@ macro_rules! impl_list {
         where
             $type: SimdElement,
             $lanes: SupportedLaneCount,
+            Self: ReprBytes<{ size_of::<$type>() * N + 1 }>,
         {
             fn pack(&self) -> (usize, Vec<u8>) {
                 // Find maximum value to determine required bits

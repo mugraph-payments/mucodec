@@ -1,4 +1,4 @@
-use mucodec::{Bytes, ReprBytes};
+use mucodec::{Bytes, ListU16, ListU32, ListU64, ReprBytes, String};
 
 #[derive(Debug, ReprBytes)]
 pub struct Data {
@@ -6,7 +6,7 @@ pub struct Data {
     bytes2: Bytes<24>,
     bytes3: Bytes<256>,
     bytes4: Bytes<768>,
-    string1: String<1>,
+    string1: String<8>,
     string2: String<24>,
     string3: String<256>,
     string4: String<768>,
@@ -22,9 +22,9 @@ pub struct Data {
     i64_field: i64,
     i128_field: i128,
     isize_field: isize,
-    list_u16: ListU16,
-    list_u32: ListU32,
-    list_u64: ListU64,
+    list_u16: ListU16<32>,
+    list_u32: ListU32<116>,
+    list_u64: ListU64<43>,
 }
 
 fn main() {
