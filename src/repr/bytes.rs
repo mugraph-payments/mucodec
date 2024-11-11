@@ -28,7 +28,13 @@ pub trait ReprBytes<const N: usize>: Sized + Debug {
     where
         [(); N]:,
     {
-        Ok(Self::from_bytes(input.try_into()?))
+        if input.len() != N {
+            return Err(Error::InvalidDataSize {
+                expected: N,
+                got: input.len(),
+            });
+        }
+        Ok(Self::from_bytes(input.try_into().unwrap())) // safe because we checked length
     }
 }
 

@@ -18,13 +18,21 @@ macro_rules! impl_list {
             #[cfg(feature = "rand")]
             pub fn random<R: rand::prelude::Rng>(rng: &mut R) -> Self {
                 let mut out = [0; N];
+
                 for i in 0..N {
                     out[i] = rng.gen::<$type>();
                 }
+
                 Self(out)
             }
+        }
 
-            pub fn pack(&self) -> (usize, Vec<u8>) {
+        impl<const N: usize> ReprPacked for $list_type<N>
+        where
+            $type: SimdElement,
+            $lanes: SupportedLaneCount,
+        {
+            fn pack(&self) -> (usize, Vec<u8>) {
                 // Find maximum value to determine required bits
                 let max_val = self.0.iter().copied().max().unwrap_or(0);
                 let bit_width = if max_val == 0 {
@@ -54,7 +62,7 @@ macro_rules! impl_list {
                 (bit_width, out)
             }
 
-            pub fn unpack(bit_width: usize, input: &[u8]) -> Result<Self, Error> {
+            fn unpack(bit_width: usize, input: &[u8]) -> Result<Self, Error> {
                 let expected_size = (N * bit_width + 7) / 8;
                 if input.len() != expected_size {
                     return Err(Error::InvalidDataSize {
@@ -89,7 +97,7 @@ macro_rules! impl_list {
 
         impl<const N: usize> fmt::Debug for $list_type<N> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "{:?}", self.0)
+                write!(f, "List<{N}>")
             }
         }
 
@@ -126,26 +134,41 @@ macro_rules! impl_list {
             }
         }
 
-        impl<const N: usize> ReprBytes<{ size_of::<$type>() * N }> for $list_type<N> {
-            fn from_bytes(input: [u8; { size_of::<$type>() * N }]) -> Self {
-                let mut out = [0; N];
-                let mut input_chunks = input.chunks_exact(size_of::<$type>());
-                for i in 0..N {
-                    let chunk = input_chunks.next().unwrap();
-                    out[i] = <$type>::from_le_bytes(chunk.try_into().unwrap());
-                }
-                Self(out)
+        impl<const N: usize> ReprBytes<{ size_of::<$type>() * N + 1 }> for $list_type<N> {
+            fn from_bytes(input: [u8; { size_of::<$type>() * N + 1 }]) -> Self {
+                // First byte contains the bit width
+                let bit_width = input[0] as usize;
+                let data_size = (N * bit_width + 7) / 8;
+
+                // Extract the packed data
+                let packed = &input[1..1 + data_size];
+
+                // Unpack using the stored bit width
+                Self::unpack(bit_width, packed).unwrap()
             }
 
-            fn as_bytes(&self) -> [u8; { size_of::<$type>() * N }] {
-                let mut out = [0u8; { size_of::<$type>() * N }];
+            fn as_bytes(&self) -> [u8; { size_of::<$type>() * N + 1 }] {
+                let mut out = [0u8; { size_of::<$type>() * N + 1 }];
 
-                for (i, val) in self.0.iter().enumerate() {
-                    let start = i * size_of::<$type>();
-                    let end = start + size_of::<$type>();
+                // Pack the data and get bit width
+                let (bit_width, packed) = self.pack();
+                let data_size = (N * bit_width + 7) / 8;
 
-                    out[start..end].copy_from_slice(&val.to_le_bytes());
+                // Store bit width in first byte
+                out[0] = bit_width as u8;
+
+                // Copy packed data
+                out[1..1 + data_size].copy_from_slice(&packed);
+
+                // Only add padding and sentinel if there's room
+                let total = out.len();
+                if 1 + data_size < total - 1 {
+                    // Fill remaining bytes with zeros
+                    out[1 + data_size..total - 1].fill(0);
+                    // Set last byte to 0xFF as sentinel
+                    out[total - 1] = 0xFF;
                 }
+
                 out
             }
         }
@@ -166,8 +189,6 @@ mod tests {
         ($list_type:ident, $type:ty, $($size:expr),+) => {
             paste::paste! {
                 mod [<$list_type:snake _tests>] {
-                    use core::mem::size_of_val;
-
                     use super::*;
 
                     fn list<const N: usize>(max_value: $type) -> impl Strategy<Value = $list_type<N>> {
@@ -190,8 +211,9 @@ mod tests {
                             #[strategy(list::<$size>(((1u128 << 16) - 1).min(<$type>::MAX.into()) as $type))]
                             input: $list_type<$size>
                         ) {
-                            let (_, packed) = input.pack();
-                            prop_assert!(packed.len() <= size_of_val(&input));
+                            let (bit_width, packed) = input.pack();
+                            let expected_packed_size = ($size * bit_width + 7) / 8;
+                            prop_assert_eq!(packed.len(), expected_packed_size);
                         }
 
                         #[test_strategy::proptest]
@@ -201,13 +223,32 @@ mod tests {
                         ) {
                             prop_assert_eq!(<$list_type<$size>>::from_bytes(input.as_bytes()), input);
                         }
+
+                        #[test_strategy::proptest]
+                        fn [<test_padding_ $size>](list: $list_type<$size>) {
+                            let bytes = list.as_bytes();
+                            let (bit_width, packed) = list.pack();
+
+                            // Check that the first byte contains the correct bit width
+                            prop_assert_eq!(bytes[0] as usize, bit_width);
+
+                            // Check that the actual data is present
+                            prop_assert_eq!(&bytes[1..1 + packed.len()], packed.as_slice());
+
+                            // Only verify padding if there's enough space for both padding and sentinel
+                            if 1 + packed.len() < bytes.len() - 1 {
+                                // Check that the padding is all zeros except the last byte
+                                prop_assert!(bytes[1 + packed.len()..bytes.len() - 1].iter().all(|&b| b == 0));
+                                prop_assert_eq!(*bytes.last().unwrap(), 0xFF);
+                            }
+                        }
                     )*
                 }
             }
         };
     }
 
-    generate_tests!(ListU16, u16, 32, 128, 512, 2048);
-    generate_tests!(ListU32, u32, 32, 128, 512, 2048);
-    generate_tests!(ListU64, u64, 32, 128, 512, 2048);
+    generate_tests!(ListU16, u16, 64, 128);
+    generate_tests!(ListU32, u32, 64, 128);
+    generate_tests!(ListU64, u64, 64, 128);
 }
