@@ -7,7 +7,7 @@ use core::{
 
 use crate::{from_hex_digit, Error, ReprBase64, ReprBytes, ReprHex};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct String<const N: usize>([u8; N]);
 
