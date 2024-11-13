@@ -20,6 +20,13 @@ impl<const N: usize> Bytes<N> {
     }
 }
 
+#[cfg(feature = "blake3")]
+impl From<blake3::Hash> for Bytes<32> {
+    fn from(hash: blake3::Hash) -> Self {
+        Self(*hash.as_bytes())
+    }
+}
+
 impl<const N: usize> fmt::Debug for Bytes<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_hex())
