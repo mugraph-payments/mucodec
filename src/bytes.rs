@@ -1,6 +1,7 @@
 use alloc::{string::String, vec::Vec};
 use core::{
     fmt,
+    hash::{Hash, Hasher},
     ops::Deref,
     simd::{cmp::*, num::*, *},
 };
@@ -10,6 +11,12 @@ use crate::{from_hex_digit, Error, ReprBase64, ReprBytes, ReprHex};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Bytes<const N: usize>([u8; N]);
+
+impl<const N: usize> Hash for Bytes<N> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
 
 impl<const N: usize> Default for Bytes<N> {
     fn default() -> Self {

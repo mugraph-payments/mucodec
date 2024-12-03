@@ -1,5 +1,11 @@
 use alloc::vec::Vec;
-use core::{fmt, mem::size_of, ops::Deref, simd::*};
+use core::{
+    fmt,
+    hash::{Hash, Hasher},
+    mem::size_of,
+    ops::Deref,
+    simd::*,
+};
 
 use crate::*;
 
@@ -8,6 +14,12 @@ macro_rules! impl_list {
         #[derive(Clone, Copy, PartialEq, Eq)]
         #[repr(transparent)]
         pub struct $list_type<const N: usize>([$type; N]);
+
+        impl<const N: usize> Hash for $list_type<N> {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.0.hash(state);
+            }
+        }
 
         #[allow(dead_code)]
         impl<const N: usize> $list_type<N>
