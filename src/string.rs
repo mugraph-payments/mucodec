@@ -11,6 +11,12 @@ use crate::{from_hex_digit, Error, ReprBase64, ReprBytes, ReprHex};
 #[repr(transparent)]
 pub struct String<const N: usize>([u8; N]);
 
+impl<const N: usize> Default for String<N> {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 impl<const N: usize> String<N> {
     #[cfg(feature = "rand")]
     pub fn random<R: rand::prelude::Rng>(rng: &mut R) -> Self {

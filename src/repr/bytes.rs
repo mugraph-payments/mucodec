@@ -7,7 +7,7 @@ use core::fmt::Debug;
 
 use crate::Error;
 
-pub trait ReprBytes<const N: usize>: Sized + Debug {
+pub trait ReprBytes<const N: usize>: Sized + Debug + Default {
     const SIZE: usize = N;
 
     fn from_bytes(input: [u8; N]) -> Self;

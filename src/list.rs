@@ -15,6 +15,10 @@ macro_rules! impl_list {
             $type: SimdElement,
             $lanes: SupportedLaneCount,
         {
+            pub fn zero() -> Self {
+                Self([0; N])
+            }
+
             #[cfg(feature = "rand")]
             pub fn random<R: rand::prelude::Rng>(rng: &mut R) -> Self {
                 let mut out = [0; N];
@@ -137,6 +141,12 @@ macro_rules! impl_list {
         impl<const N: usize> AsRef<[$type]> for $list_type<N> {
             fn as_ref(&self) -> &[$type] {
                 &self.0
+            }
+        }
+
+        impl<const N: usize> Default for $list_type<N> {
+            fn default() -> Self {
+                Self::zero()
             }
         }
 
