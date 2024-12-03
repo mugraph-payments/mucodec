@@ -21,7 +21,7 @@ impl<const N: usize> Bytes<N> {
 }
 
 #[cfg(feature = "blake3")]
-impl From<blake3::Hash> for Bytes<blake3::OUT_LEN> {
+impl From<blake3::Hash> for Bytes<{ blake3::OUT_LEN }> {
     fn from(hash: blake3::Hash) -> Self {
         Self(*hash.as_bytes())
     }
