@@ -45,7 +45,7 @@ macro_rules! impl_list {
                 // Calculate packed size in bytes (rounding up)
                 let byte_size = (N * bit_width + 7) / 8;
                 let mut out = Vec::with_capacity(byte_size);
-                let mask = if bit_width < (size_of::<$type>() * 8) {
+                let mask = if bit_width < (<$type>::BITS as usize) {
                     ((1 as $type) << bit_width) - 1
                 } else {
                     <$type>::MAX
@@ -78,7 +78,7 @@ macro_rules! impl_list {
                 }
 
                 let mut out = [0; N];
-                let mask = if bit_width < (size_of::<$type>() * 8) {
+                let mask = if bit_width < (<$type>::BITS as usize) {
                     ((1 as $type) << bit_width) - 1
                 } else {
                     <$type>::MAX

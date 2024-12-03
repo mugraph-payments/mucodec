@@ -7,7 +7,6 @@ use alloc::string::String;
 use crate::{Bytes, Error, ReprBytes};
 
 pub trait ReprBase64<const N: usize>: ReprBytes<N> {
-    // Add this constant - it will be (N + 2) / 3 * 4 for base64 encoding
     const BASE64_SIZE: usize = (N + 2) / 3 * 4;
 
     fn to_base64(&self) -> String;

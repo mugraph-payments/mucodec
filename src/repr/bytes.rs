@@ -34,7 +34,8 @@ pub trait ReprBytes<const N: usize>: Sized + Debug {
                 got: input.len(),
             });
         }
-        Ok(Self::from_bytes(input.try_into().unwrap())) // safe because we checked length
+
+        Ok(Self::from_bytes(input.try_into()?))
     }
 }
 

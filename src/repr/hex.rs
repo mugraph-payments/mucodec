@@ -5,7 +5,6 @@ use alloc::{string::String, vec::Vec};
 use crate::{Error, ReprBytes};
 
 pub trait ReprHex<const N: usize>: Sized + ReprBytes<N> {
-    // Add this constant - it will always be N * 2 for hex encoding
     const HEX_SIZE: usize = N * 2;
 
     fn to_hex(&self) -> String;
